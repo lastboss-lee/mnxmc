@@ -6,6 +6,8 @@ Dashboard Screen
 기능(7개 화면 네비게이션 / 1초 실시간 상태 / F5·F7·F8)은 기존과 동일하다.
 """
 
+import threading
+
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Footer, Static, ListView, Input
@@ -98,8 +100,18 @@ class DashboardScreen(BaseScreen):
     # ═══════════════════════════════════════════════════════════════════════════
 
     def _update_status(self) -> None:
+        """상태 갱신 (blocking subprocess를 스레드로 오프로드 — UI 프리즈 방지)."""
+        def _collect():
+            try:
+                data = self._get_system_status()
+            except Exception as e:
+                data = f"[red]Error: {e}[/]"
+            self.app.call_from_thread(self._render_status, data)
+        threading.Thread(target=_collect, daemon=True).start()
+
+    def _render_status(self, content: str) -> None:
         try:
-            self.query_one("#system-status", Static).update(self._get_system_status())
+            self.query_one("#system-status", Static).update(content)
         except Exception:
             pass
 

@@ -17,6 +17,7 @@ from textual.containers import ScrollableContainer
 from textual.binding import Binding
 from rich.markup import escape as _rich_escape
 import re as _re
+import threading
 
 # graidctl 등 외부 CLI 출력에 들어있는 ANSI 색상 escape를 제거하기 위한 패턴.
 _ANSI_RE = _re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
@@ -205,7 +206,7 @@ class SystemScreen(BaseScreen):
             self.log.error(f"Selection error: {e}")
 
     def _update_info(self) -> None:
-        """정보 업데이트."""
+        """정보 업데이트. (blocking subprocess를 스레드로 오프로드 — UI 프리즈 방지)"""
         _titles = {
             "all":     "All Information",
             "system":  "System Info",
@@ -221,32 +222,44 @@ class SystemScreen(BaseScreen):
             )
         except Exception:
             pass
+
+        view = self._current_view
+
+        def _collect():
+            try:
+                if view == "all":
+                    data = self._get_all_info()
+                elif view == "system":
+                    data = self._get_system_detail()
+                elif view == "cpu":
+                    data = self._get_cpu_detail()
+                elif view == "memory":
+                    data = self._get_memory_detail()
+                elif view == "storage":
+                    data = self._get_storage_detail()
+                elif view == "disk":
+                    try:
+                        data = self._get_disk_info()
+                    except Exception:
+                        import traceback as _tb
+                        data = ("[red]Disk Info render error[/]\n\n"
+                                + _rich_escape(_tb.format_exc()))
+                elif view == "network":
+                    data = self._get_network_detail()
+                else:
+                    data = ""
+            except Exception as e:
+                data = f"[red]Update error: {e}[/]"
+            self.app.call_from_thread(self._render_info, data)
+
+        threading.Thread(target=_collect, daemon=True).start()
+
+    def _render_info(self, content: str) -> None:
+        """UI 업데이트 (메인 스레드에서 call_from_thread로 호출)."""
         try:
-            info_widget = self.query_one("#system-info", Static)
-            
-            if self._current_view == "all":
-                info_widget.update(self._get_all_info())
-            elif self._current_view == "system":
-                info_widget.update(self._get_system_detail())
-            elif self._current_view == "cpu":
-                info_widget.update(self._get_cpu_detail())
-            elif self._current_view == "memory":
-                info_widget.update(self._get_memory_detail())
-            elif self._current_view == "storage":
-                info_widget.update(self._get_storage_detail())
-            elif self._current_view == "disk":
-                try:
-                    info_widget.update(self._get_disk_info())
-                except Exception:
-                    import traceback as _tb
-                    info_widget.update(
-                        "[red]Disk Info render error[/]\n\n"
-                        + _rich_escape(_tb.format_exc())
-                    )
-            elif self._current_view == "network":
-                info_widget.update(self._get_network_detail())
+            self.query_one("#system-info", Static).update(content)
         except Exception as e:
-            self.log.error(f"Update failed: {e}")
+            self.log.error(f"Render failed: {e}")
     
     # ═══════════════════════════════════════════════════════════════════════
     # 정보 수집 헬퍼
