@@ -56,6 +56,21 @@ Sidebar .nav-category {
     padding: 1 2 0 2;
 }
 
+/* 섹션 헤더 / 구분선 (선택 불가 항목) */
+Sidebar ListItem.nav-header {
+    color: #00aeef;           /* Color.PRIMARY */
+    text-style: bold;
+}
+
+Sidebar ListItem.nav-header:hover,
+Sidebar ListItem.nav-sep:hover {
+    background: transparent;
+}
+
+Sidebar ListItem.nav-sep {
+    color: #2a3440;           /* Color.BORDER */
+}
+
 Sidebar ListView {
     background: transparent;
     height: auto;

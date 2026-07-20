@@ -143,12 +143,23 @@ class Sidebar(Vertical):
     공통 좌측 내비게이션.
 
     카테고리 라벨 + 메뉴 항목 리스트. 선택 강조/스크롤은 theme.tcss 가 담당한다.
+
+    항목 형식 (하위 호환):
+        (key, label)              → 선택 가능한 일반 항목 (kind="item")
+        (key, label, kind)        → kind = "item" | "header" | "separator"
+                                     header/separator 는 비활성(선택 불가) 라벨.
+
+    Args:
+        bullet: True 면 일반 항목 앞에 캐럿 글리프를 붙인다.
+                라벨에 자체 들여쓰기 체계가 있는 화면은 False 로 끈다.
     """
 
-    def __init__(self, title: str, items: Iterable[tuple[str, str]], **kwargs) -> None:
+    def __init__(self, title: str, items: Iterable[tuple], bullet: bool = True,
+                 **kwargs) -> None:
         super().__init__(**kwargs)
         self._title = title
-        self._items: list[tuple[str, str]] = list(items)
+        self._items: list[tuple] = list(items)
+        self._bullet = bullet
 
     def compose(self) -> ComposeResult:
         if self._title:
@@ -158,9 +169,21 @@ class Sidebar(Vertical):
 
     def on_mount(self) -> None:
         list_view = self.query_one(ListView)
-        for item_id, label in self._items:
-            item = ListItem(Static(f"{Glyph.ARROW} {label}"))
-            item.id = f"nav-{item_id}"
+        for entry in self._items:
+            key, label = entry[0], entry[1]
+            kind = entry[2] if len(entry) > 2 else "item"
+
+            if kind == "header":
+                item = ListItem(Static(label), classes="nav-header")
+                item.disabled = True
+            elif kind == "separator":
+                item = ListItem(Static(label), classes="nav-sep")
+                item.disabled = True
+            else:
+                prefix = f"{Glyph.ARROW} " if self._bullet else ""
+                item = ListItem(Static(f"{prefix}{label}"))
+
+            item.id = f"nav-{key}"
             list_view.append(item)
 
 
@@ -190,14 +213,16 @@ class BaseScreen(Screen):
 
     # 서브클래스가 재정의
     SIDEBAR_TITLE: str = ""
-    SIDEBAR_ITEMS: list[tuple[str, str]] = []
+    SIDEBAR_ITEMS: list[tuple] = []
+    SIDEBAR_BULLET: bool = True   # 라벨에 자체 들여쓰기가 있으면 False
     FOOTER_KEYS: Optional[list[tuple[str, str]]] = None
 
     def compose(self) -> ComposeResult:
         with AppShell():
             yield AppHeader()
             with Horizontal(id="shell-body"):
-                yield Sidebar(self.SIDEBAR_TITLE, self.SIDEBAR_ITEMS)
+                yield Sidebar(self.SIDEBAR_TITLE, self.SIDEBAR_ITEMS,
+                              bullet=self.SIDEBAR_BULLET)
                 with Container(id="content"):
                     yield from self.compose_content()
             yield AppFooter(self.FOOTER_KEYS)

@@ -21,13 +21,12 @@ from collections import OrderedDict
 from rich.markup import escape as markup_escape
 
 from textual.app import ComposeResult
-from textual.screen import Screen
+from app.ui.screen import BaseScreen
 from textual.widgets import Footer, Static, ListView, ListItem, Label, Input, Button
 from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
 from textual.binding import Binding
 from textual import on, events
 
-from app.widgets import CustomHeader
 
 
 # ── File paths ────────────────────────────────────────────────────────────────
@@ -272,8 +271,26 @@ SECTION_TITLES = {
 NON_SELECTABLE = {"hdr", "hdr2", "hdr3", "hdr4", "hdr5", "hdr6", "hdr7", "sep1", "sep2", "sep3", "sep4", "sep5", "sep6"}
 
 
-class MnxConfigScreen(Screen):
-    """MNX configuration editor screen."""
+class MnxConfigScreen(BaseScreen):
+    """MNX configuration editor screen (공통 BaseScreen 골격 사용)."""
+
+    SIDEBAR_TITLE = "MNX CONFIG"
+    SIDEBAR_BULLET = False   # MENU_ITEMS 라벨이 자체 들여쓰기를 가짐
+    SIDEBAR_ITEMS = [
+        (k, l, ("header" if k.startswith("hdr")
+                else "separator" if k.startswith("sep")
+                else "item"))
+        for k, l in MENU_ITEMS
+    ]
+
+    FOOTER_KEYS = [
+        ("↑↓", "Select"),
+        ("Enter", "Open"),
+        ("Ctrl+S", "Apply"),
+        ("F3", "Default"),
+        ("F10", "Exit"),
+        ("ESC", "Back"),
+    ]
 
     CSS = """
     MnxConfigScreen {
@@ -703,31 +720,20 @@ class MnxConfigScreen(Screen):
 
     # ── Compose ──────────────────────────────────────────────────────────────
 
-    def compose(self) -> ComposeResult:
-        yield CustomHeader()
-
-        with Container(id="main-container"):
-            with Vertical(id="left-panel"):
-                yield Static(" MNX Config", id="menu-title")
-                yield ListView(id="config-menu")
-
-            with Vertical(id="right-panel"):
-                yield Static(" Select a section", id="panel-title")
-                with ScrollableContainer(id="form-scroll"):
-                    yield Static(
-                        "[bright_black]← Select a config section from the left menu[/]",
-                        id="form-placeholder"
-                    )
-                yield Static("", id="status-bar")
-                with Horizontal(id="button-row"):
-                    yield Button("< Apply (Ctrl+S) >", id="btn-apply")
-                    yield Button("< Cancel (ESC) >",   id="btn-cancel")
-
-        yield Footer()
+    def compose_content(self) -> ComposeResult:
+        yield Static(" Select a section", id="panel-title")
+        with ScrollableContainer(id="form-scroll"):
+            yield Static(
+                "[bright_black]← Select a config section from the left menu[/]",
+                id="form-placeholder"
+            )
+        yield Static("", id="status-bar")
+        with Horizontal(id="button-row"):
+            yield Button("< Apply (Ctrl+S) >", id="btn-apply")
+            yield Button("< Cancel (ESC) >",   id="btn-cancel")
 
     def on_mount(self) -> None:
         self._ensure_config_files()
-        self._build_menu()
         self.set_timer(0.1, self._focus_menu)
         self.query_one("#button-row").display = False
 
@@ -808,29 +814,9 @@ class MnxConfigScreen(Screen):
             except Exception:
                 pass
 
-    def _build_menu(self) -> None:
-        menu = self.query_one("#config-menu", ListView)
-        for key, label in MENU_ITEMS:
-            # 구분선 항목 (빈 문자열 또는 sep 키)
-            if key.startswith("sep"):
-                item = ListItem(Label(label), id=f"mi-{key}", classes="-separator")
-                item.disabled = True
-            # 섹션 헤더 항목 (hdr 키)
-            elif key.startswith("hdr"):
-                item = ListItem(Label(f"[cyan]{label}[/]"), id=f"mi-{key}", classes="-section")
-                item.disabled = True
-            # 뒤로가기
-            elif key == "back":
-                item = ListItem(Label(label), id=f"mi-{key}")
-            # 일반 선택 항목
-            else:
-                item = ListItem(Label(label), id=f"mi-{key}")
-            self._menu_texts[f"mi-{key}"] = (key, label)
-            menu.append(item)
-
     def _focus_menu(self) -> None:
         try:
-            menu = self.query_one("#config-menu", ListView)
+            menu = self.query_one("Sidebar ListView", ListView)
             menu.focus()
             menu.index = self._last_menu_index
         except Exception:
@@ -838,54 +824,20 @@ class MnxConfigScreen(Screen):
 
     # ── Menu navigation ───────────────────────────────────────────────────────
 
-    @on(ListView.Selected)
-    def on_list_selected(self, event: ListView.Selected) -> None:
-        # Textual 버전에 따라 list_view 또는 control 속성으로 ListView 참조
-        lv = getattr(event, "list_view", None) or getattr(event, "control", None)
-        lv_id = lv.id if lv else None
-        item = event.item
-
-        if lv_id != "config-menu":
-            return
-        if item is None or item.id is None:
-            return
-        if item.disabled:
-            return
-        key, _ = self._menu_texts.get(item.id, ("", ""))
-        if not key:
+    def on_nav_selected(self, key: str) -> None:
+        """사이드바 선택 처리 (BaseScreen 라우팅). 헤더/구분선은 비활성이라 미발생."""
+        if not key or key in NON_SELECTABLE:
             return
         if key == "back":
             self.action_go_back()
-        elif key not in NON_SELECTABLE:
+        else:
             self._show_section(key)
-
-
-    @on(ListView.Highlighted)
-    def on_menu_highlighted(self, event: ListView.Highlighted) -> None:
-        lv = getattr(event, "list_view", None)
-        if not lv or lv.id != "config-menu":
-            return
-        if event.item is None:
-            return
-        try:
-            menu = self.query_one("#config-menu", ListView)
-            for item in menu.children:
-                if not isinstance(item, ListItem) or item.disabled:
-                    continue
-                lbl = item.query_one(Label)
-                _, text = self._menu_texts.get(item.id, ("", ""))
-                if item == event.item:
-                    lbl.update(f"[reverse]{text}[/]")
-                else:
-                    lbl.update(text)
-        except Exception as e:
-            self.log.error(f"Highlight error: {e}")
 
     # ── Form rendering ────────────────────────────────────────────────────────
 
     def _show_section(self, section_key: str) -> None:
         try:
-            self._last_menu_index = self.query_one("#config-menu", ListView).index or 0
+            self._last_menu_index = self.query_one("Sidebar ListView", ListView).index or 0
         except Exception:
             pass
         if section_key == "disk_perf":
