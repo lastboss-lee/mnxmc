@@ -170,21 +170,41 @@ class Sidebar(Vertical):
     def on_mount(self) -> None:
         list_view = self.query_one(ListView)
         for entry in self._items:
-            key, label = entry[0], entry[1]
-            kind = entry[2] if len(entry) > 2 else "item"
+            list_view.append(self._make_item(entry))
 
-            if kind == "header":
-                item = ListItem(Static(label), classes="nav-header")
-                item.disabled = True
-            elif kind == "separator":
-                item = ListItem(Static(label), classes="nav-sep")
-                item.disabled = True
-            else:
-                prefix = f"{Glyph.ARROW} " if self._bullet else ""
-                item = ListItem(Static(f"{prefix}{label}"))
+    def _make_item(self, entry: tuple) -> ListItem:
+        """단일 항목 위젯 생성 (on_mount / set_items 공용)."""
+        key, label = entry[0], entry[1]
+        kind = entry[2] if len(entry) > 2 else "item"
 
-            item.id = f"nav-{key}"
-            list_view.append(item)
+        if kind == "header":
+            item = ListItem(Static(label), classes="nav-header")
+            item.disabled = True
+        elif kind == "separator":
+            item = ListItem(Static(label), classes="nav-sep")
+            item.disabled = True
+        else:
+            prefix = f"{Glyph.ARROW} " if self._bullet else ""
+            item = ListItem(Static(f"{prefix}{label}"))
+
+        item.id = f"nav-{key}"
+        return item
+
+    def set_items(self, items: Iterable[tuple]) -> None:
+        """항목 목록을 동적으로 교체한다 (런타임에 채워지는 메뉴용)."""
+        self._items = list(items)
+        lv = self.query_one(ListView)
+        lv.clear()
+        for entry in self._items:
+            lv.append(self._make_item(entry))
+
+    def update_item_label(self, key: str, markup: str) -> None:
+        """특정 항목의 라벨만 제자리 갱신한다 (라이브 상태 아이콘 등)."""
+        try:
+            item = self.query_one(f"#nav-{key}", ListItem)
+            item.query_one(Static).update(markup)
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -244,9 +264,17 @@ class BaseScreen(Screen):
 
     # ── 사이드바 선택 라우팅 ─────────────────────────────────────────────
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        item_id = event.item.id or ""
+        item_id = (event.item.id or "") if event.item else ""
         if item_id.startswith("nav-"):
             self.on_nav_selected(item_id[len("nav-"):])
 
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        item_id = (event.item.id or "") if event.item else ""
+        if item_id.startswith("nav-"):
+            self.on_nav_highlighted(item_id[len("nav-"):])
+
     def on_nav_selected(self, item_id: str) -> None:
-        """서브클래스가 사이드바 선택을 처리하도록 재정의한다."""
+        """서브클래스가 사이드바 선택(Enter)을 처리하도록 재정의한다."""
+
+    def on_nav_highlighted(self, item_id: str) -> None:
+        """서브클래스가 사이드바 커서 이동을 처리하도록 재정의한다(선택)."""

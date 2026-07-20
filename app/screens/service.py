@@ -14,12 +14,11 @@ Controls (좌측 메뉴 포커스 상태):
 """
 
 from textual.app import ComposeResult
-from textual.screen import Screen
-from textual.widgets import Footer, Static, Input, ListView, ListItem, Label
-from textual.containers import Container, Vertical, Horizontal
+from textual.widgets import Static, Input, ListView
+from textual.containers import Container, Vertical
 from textual.binding import Binding
 from textual import on
-from app.widgets import CustomHeader
+from app.ui.screen import BaseScreen, Sidebar
 import subprocess
 import threading
 from datetime import datetime
@@ -114,8 +113,20 @@ class AuthenticationManager:
 # Screen
 # ════════════════════════════════════════════════════════════════════════════
 
-class ServiceScreen(Screen):
-    """MNX Service Manager."""
+class ServiceScreen(BaseScreen):
+    """MNX Service Manager (공통 BaseScreen 골격 사용)."""
+
+    SIDEBAR_TITLE = "SERVICE MANAGER"
+    SIDEBAR_BULLET = False   # 라벨은 상태 아이콘과 함께 동적으로 갱신됨
+
+    FOOTER_KEYS = [
+        ("↑↓", "Select"),
+        ("R/S/X", "Restart/Start/Stop"),
+        ("A/Z", "All Start/Stop"),
+        ("F5", "Refresh"),
+        ("F10", "Exit"),
+        ("ESC", "Back"),
+    ]
 
     CSS = """
     ServiceScreen {
@@ -287,6 +298,10 @@ class ServiceScreen(Screen):
         ("zookeeper.service",           "zookeeper",           "Coordination Service"),
     ]
 
+    SIDEBAR_ITEMS = [("back", "← Back"), ("overview", "Overview")] + [
+        (f"svc-{i}", short) for i, (_u, short, _d) in enumerate(SERVICES)
+    ]
+
     def __init__(self) -> None:
         super().__init__()
         self._service_cache: dict = {}   # unit → "active" | "inactive" | ...
@@ -302,19 +317,12 @@ class ServiceScreen(Screen):
     # Compose / Lifecycle
     # ════════════════════════════════════════════════════════════════════════
 
-    def compose(self) -> ComposeResult:
-        yield CustomHeader()
-
-        with Horizontal(id="main-horizontal"):
-            with Vertical(id="left-panel"):
-                yield Static(" Service Manager ", id="menu-title")
-                yield ListView(id="menu-list")
-
-            with Vertical(id="content-panel"):
-                yield Static("Service Overview", id="content-title")
-                yield Static("Loading...", id="content-body")
-                yield Static("", id="action-hint")
-                yield Static("", id="action-result")
+    def compose_content(self) -> ComposeResult:
+        with Vertical(id="content-panel"):
+            yield Static("Service Overview", id="content-title")
+            yield Static("Loading...", id="content-body")
+            yield Static("", id="action-hint")
+            yield Static("", id="action-result")
 
         with Container(id="dialog-overlay"):
             with Vertical(id="dialog-box"):
@@ -324,16 +332,8 @@ class ServiceScreen(Screen):
                 yield Static("Press ESC to cancel", id="dialog-hint")
                 yield Static("", id="dialog-error")
 
-        yield Footer()
-
     def on_mount(self) -> None:
-        menu = self.query_one("#menu-list", ListView)
-        menu.append(ListItem(Label("← Back"),    id="menu-back"))
-        menu.append(ListItem(Label("Overview"),  id="menu-overview"))
-
-        for i, (svc, short, _) in enumerate(self.SERVICES):
-            menu.append(ListItem(Label(f"  {short}"), id=f"svc-{i}"))
-
+        # 사이드바 항목은 BaseScreen 이 SIDEBAR_ITEMS 로 구성함
         # 힌트/레이블 먼저 표시 후 비동기 데이터 수집
         self._set_hint(overview=True)
         self._refresh_all_menu_labels()   # Overview 활성 표시
@@ -343,12 +343,12 @@ class ServiceScreen(Screen):
         self.set_timer(0.1, self._focus_menu)
 
     def on_unmount(self) -> None:
-        if hasattr(self, '_refresh_handle') and self._refresh_handle:
+        if getattr(self, "_refresh_handle", None):
             self._refresh_handle.stop()
 
     def _focus_menu(self) -> None:
         try:
-            menu = self.query_one("#menu-list", ListView)
+            menu = self.query_one("Sidebar ListView", ListView)
             menu.focus()
             menu.index = 1   # Overview 기본
         except Exception:
@@ -366,58 +366,44 @@ class ServiceScreen(Screen):
         일반 항목       :   상태 아이콘 + 이름
         """
         try:
-            menu = self.query_one("#menu-list", ListView)
+            sidebar = self.query_one(Sidebar)
         except Exception:
             return
 
         # ── Back ──────────────────────────────────────────────────────────────
-        try:
-            label = menu.query_one("#menu-back", ListItem).query_one(Label)
-            if highlighted_id == "menu-back":
-                label.update("[reverse] ▸ ← Back [/]")
-            else:
-                label.update("  ← Back")
-        except Exception:
-            pass
+        if highlighted_id == "back":
+            sidebar.update_item_label("back", "[reverse] ▸ ← Back [/]")
+        else:
+            sidebar.update_item_label("back", "  ← Back")
 
         # ── Overview ──────────────────────────────────────────────────────────
-        try:
-            label = menu.query_one("#menu-overview", ListItem).query_one(Label)
-            if highlighted_id == "menu-overview":
-                label.update("[reverse] ▸ Overview [/]")
-            elif self._is_overview:
-                label.update("[cyan]▸ Overview[/]")
-            else:
-                label.update("  Overview")
-        except Exception:
-            pass
+        if highlighted_id == "overview":
+            sidebar.update_item_label("overview", "[reverse] ▸ Overview [/]")
+        elif self._is_overview:
+            sidebar.update_item_label("overview", "[cyan]▸ Overview[/]")
+        else:
+            sidebar.update_item_label("overview", "  Overview")
 
         # ── Services ──────────────────────────────────────────────────────────
         for i, (svc, short, _) in enumerate(self.SERVICES):
-            item_id = f"svc-{i}"
-            try:
-                label = menu.query_one(f"#{item_id}", ListItem).query_one(Label)
-                status = self._service_cache.get(svc, "unknown")
-                color, symbol = self._status_icon(status)
-                is_active = (not self._is_overview) and (self._current_svc == svc)
-                if item_id == highlighted_id:
-                    label.update(f"[reverse] ▸ {symbol} {short} [/]")
-                elif is_active:
-                    label.update(f"[cyan]▸[/] [{color}]{symbol}[/] {short}")
-                else:
-                    label.update(f"  [{color}]{symbol}[/] {short}")
-            except Exception:
-                pass
+            key = f"svc-{i}"
+            status = self._service_cache.get(svc, "unknown")
+            color, symbol = self._status_icon(status)
+            is_active = (not self._is_overview) and (self._current_svc == svc)
+            if key == highlighted_id:
+                sidebar.update_item_label(key, f"[reverse] ▸ {symbol} {short} [/]")
+            elif is_active:
+                sidebar.update_item_label(key, f"[cyan]▸[/] [{color}]{symbol}[/] {short}")
+            else:
+                sidebar.update_item_label(key, f"  [{color}]{symbol}[/] {short}")
 
-    @on(ListView.Highlighted, "#menu-list")
-    def on_menu_highlighted(self, event: ListView.Highlighted) -> None:
+    def on_nav_highlighted(self, item_id: str) -> None:
         """커서 이동 → 우측 패널 즉시 갱신 + Back/Overview 반전 효과."""
-        if self._dialog_stage or not event.item:
+        if self._dialog_stage or not item_id:
             return
-        item_id = event.item.id or ""
 
-        # 우측 패널 갱신 (menu-back은 우측 유지)
-        if item_id == "menu-overview":
+        # 우측 패널 갱신 (back 은 우측 유지)
+        if item_id == "overview":
             self._is_overview = True
             self._current_svc = None
             self._set_title("Service Overview")
@@ -433,15 +419,14 @@ class ServiceScreen(Screen):
             self._refresh_detail(svc)
             self._set_hint(overview=False)
 
-        # 전체 메뉴 레이블 + active 클래스 갱신
+        # 전체 메뉴 레이블 + active 표시 갱신
         self._refresh_all_menu_labels(highlighted_id=item_id)
 
-    @on(ListView.Selected, "#menu-list")
-    def on_menu_selected(self, event: ListView.Selected) -> None:
+    def on_nav_selected(self, item_id: str) -> None:
         """Enter → Back 처리."""
         if self._dialog_stage:
             return
-        if (event.item.id or "") == "menu-back":
+        if item_id == "back":
             self.action_go_back()
 
     # ════════════════════════════════════════════════════════════════════════
@@ -843,7 +828,7 @@ class ServiceScreen(Screen):
         except Exception:
             pass
         try:
-            self.query_one("#menu-list", ListView).focus()
+            self.query_one("Sidebar ListView", ListView).focus()
         except Exception:
             pass
 
