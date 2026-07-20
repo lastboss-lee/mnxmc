@@ -369,8 +369,8 @@ class ServiceScreen(BaseScreen):
             self._refresh_detail(svc)
             self._set_hint(overview=False)
 
-        # 전체 메뉴 레이블 + active 표시 갱신
-        self._refresh_all_menu_labels(highlighted_id=item_id)
+        # 메뉴 레이블 갱신 (커서 하이라이트는 CSS -highlight 가 담당 — 전 화면 통일)
+        self._refresh_all_menu_labels()
 
     def on_nav_selected(self, item_id: str) -> None:
         """Enter → Back 처리."""

@@ -734,19 +734,19 @@ class NetworkScreen(BaseScreen):
         return {"UP": "green", "NO-CARRIER": "yellow"}.get(status, "red")
 
     def _build_iface_label(self, iface, state: str = "normal") -> str:
-        """인터페이스 목록 항목 텍스트 생성 (state: normal|highlighted|selected)."""
+        """인터페이스 사이드바 항목 (단일 라인 — 다른 메뉴와 통일).
+
+        상태는 색상 점(●)으로 표시하고, IP/MAC 등 상세는 우측 패널에서 보여준다.
+        커서 하이라이트는 CSS(-highlight)가 담당하므로 여기서 reverse 처리는 하지 않는다.
+        """
         name = iface.name
         status = getattr(iface, 'status', 'UNKNOWN')
-        ip_addr = getattr(iface, 'ip', 'No IP') or 'No IP'
         status_color = self._get_status_color(status)
         mode_tag = self._get_iface_mode_tag(iface)
-
-        if state == "highlighted":
-            return f"[reverse] ▸ {name}{mode_tag} [/]\n    [{status_color}]{status}[/] {ip_addr}"
-        elif state == "selected":
-            return f"[cyan]▸ {name}{mode_tag}[/]\n    [{status_color}]{status}[/] {ip_addr}"
-        else:
-            return f"  {name}{mode_tag}\n    [{status_color}]{status}[/] {ip_addr}"
+        dot = f"[{status_color}]●[/]"
+        if state == "selected":
+            return f"[cyan]▸[/] {dot} {name}{mode_tag}"
+        return f"  {dot} {name}{mode_tag}"
 
     def compose_content(self) -> ComposeResult:
         yield Static("Network Management", id="content-title")
@@ -768,7 +768,7 @@ class NetworkScreen(BaseScreen):
 
     def _build_sidebar_items(self) -> list:
         """현재 인터페이스 목록으로 사이드바 항목 리스트를 만든다."""
-        items = [("back", "← Back"), ("sep-0", "─" * 28, "separator")]
+        items = [("back", "  ← Back")]
         filtered = self._filtered_interfaces()
         if filtered:
             names = [i.name for i in filtered]
@@ -820,31 +820,16 @@ class NetworkScreen(BaseScreen):
             self.action_configure()  # 단일 Enter로 바로 모달 열기
 
     def on_nav_highlighted(self, key: str) -> None:
+        # 커서 하이라이트는 CSS(-highlight)가 담당(전 화면 통일). 여기서는
+        # 우측 패널 미리보기와 선택 마커만 갱신한다.
         if not key:
             return
-        sidebar = self.query_one(Sidebar)
-
-        # Back 항목
-        sidebar.update_item_label(
-            "back", "[reverse] ▸ ← Back [/]" if key == "back" else "  ← Back")
-
-        # 인터페이스 항목 (커서=highlighted, 선택=selected, 그 외=normal)
-        for iface in self._filtered_interfaces():
-            k = f"iface-{iface.name}"
-            if k == key:
-                state = "highlighted"
-            elif iface.name == self.selected_interface:
-                state = "selected"
-            else:
-                state = "normal"
-            sidebar.update_item_label(k, self._build_iface_label(iface, state))
-
-        # 우측 패널 즉시 미리보기
         if key.startswith("iface-"):
             self._hovered_interface = key[len("iface-"):]
             self._update_details_for(self._hovered_interface)
         else:
             self._hovered_interface = ""
+        self._update_menu_styles()
 
     def _get_interface_by_class(self, class_name: str):
         """클래스명으로 인터페이스 찾기."""
