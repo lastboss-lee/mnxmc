@@ -17,16 +17,13 @@ import re
 import threading
 
 from textual.app import ComposeResult
-from textual.screen import Screen
-from textual.widgets import Footer, Static, RichLog, ListView, ListItem, Label
-from textual.containers import Container, Vertical
+from textual.widgets import Static, RichLog, ListView
 from textual.binding import Binding
-from textual import on
 
-from app.widgets import CustomHeader
+from app.ui.screen import BaseScreen, Sidebar
 
 
-class LogsScreen(Screen):
+class LogsScreen(BaseScreen):
     """
     로그 모니터링 화면.
     
@@ -150,106 +147,59 @@ class LogsScreen(Screen):
         ("  Elasticsearch Monitor", "elasticsearch"),
     ]
     
+    SIDEBAR_TITLE = "LOG MONITOR"
+    SIDEBAR_BULLET = False   # LOG_SOURCES 라벨이 자체 서식을 가짐
+
     def __init__(self) -> None:
         """LogsScreen을 초기화합니다."""
         super().__init__()
         self._current_log = None
-        self._menu_texts = {}  # 메뉴 항목의 원본 텍스트 저장
         self._refresh_handle = None  # 타이머 핸들 (항상 초기화)
         self._prev_net_drops = None  # RX/TX drop delta 계산용 기준값
-    
-    def compose(self) -> ComposeResult:
-        """
-        로그 모니터링 화면 UI를 구성합니다.
-        
-        Yields:
-            Widget: 화면 구성 요소들
-        """
-        yield CustomHeader()
-        
-        with Container(id="main-container"):
-            # 좌측 패널 - 로그 메뉴
-            with Container(id="left-panel"):
-                yield Static("Log Monitor", id="menu-title")
-                
-                log_menu = ListView(id="log-menu")
-                log_menu.can_focus = True
-                yield log_menu
-            
-            # 우측 패널 - 로그 내용
-            with Container(id="right-panel"):
-                yield Static("Select a log source", id="content-title")
-                log_content = RichLog(
-                    id="log-content",
-                    highlight=True,
-                    markup=True,
-                    auto_scroll=True,
-                    max_lines=2000,
-                )
-                yield log_content
-        
-        yield Footer()
-    
+
+        # LOG_SOURCES → 사이드바 항목 + 선택 항목 텍스트 맵 구성
+        self.SIDEBAR_ITEMS = []
+        self._item_text = {}
+        for idx, (label, source_id) in enumerate(self.LOG_SOURCES):
+            stripped = label.strip()
+            if stripped.startswith("─"):
+                self.SIDEBAR_ITEMS.append((f"sep-{idx}", label, "separator"))
+            elif stripped.endswith(":"):
+                self.SIDEBAR_ITEMS.append((f"hdr-{idx}", label, "header"))
+            elif source_id == "back":
+                self.SIDEBAR_ITEMS.append(("back", "← Back"))
+                self._item_text["back"] = "← Back"
+            else:
+                self.SIDEBAR_ITEMS.append((source_id, stripped))
+                self._item_text[source_id] = stripped
+
+    def compose_content(self) -> ComposeResult:
+        yield Static("Select a log source", id="content-title")
+        yield RichLog(
+            id="log-content",
+            highlight=True,
+            markup=True,
+            auto_scroll=True,
+            max_lines=2000,
+        )
+
     def on_mount(self) -> None:
         """화면이 마운트될 때 호출됩니다."""
         self.log.info("LogsScreen mounted")
-        
-        # 메뉴 항목 추가
-        self._populate_menu()
-        
-        # 초기 메시지 표시
+        # 사이드바 항목은 BaseScreen 이 SIDEBAR_ITEMS 로 구성함
         self._show_welcome_message()
-        
-        # 메뉴에 포커스
         self.set_timer(0.1, self._focus_menu)
-    
+
     def on_unmount(self) -> None:
         """화면이 언마운트될 때 호출됩니다."""
         if self._refresh_handle is not None:
             self._refresh_handle.stop()
             self._refresh_handle = None
-    
-    def _populate_menu(self) -> None:
-        """메뉴 항목을 채웁니다."""
-        try:
-            log_menu = self.query_one("#log-menu", ListView)
-            
-            for idx, (label, source_id) in enumerate(self.LOG_SOURCES):
-                stripped = label.strip()
-                menu_id = f"menu-{source_id}" if source_id else f"menu-sep-{idx}"
-                
-                # 구분선
-                if stripped.startswith("─"):
-                    item = ListItem(Label(f"[cyan]{label}[/]"), id=menu_id)
-                    item.disabled = True
-                    log_menu.append(item)
-                
-                # 섹션 헤더
-                elif stripped.endswith(":"):
-                    item = ListItem(Label(f"[cyan]{label}[/]"), id=menu_id)
-                    item.disabled = True
-                    log_menu.append(item)
-                
-                # 뒤로가기
-                elif source_id == "back":
-                    item = ListItem(Label(f"  {label}"), id=menu_id)
-                    self._menu_texts[menu_id] = label
-                    log_menu.append(item)
-                
-                # 일반 항목
-                else:
-                    item = ListItem(Label(f"  {stripped}"), id=menu_id)
-                    self._menu_texts[menu_id] = stripped
-                    log_menu.append(item)
-        
-        except Exception as e:
-            self.log.error(f"Menu population failed: {e}")
-    
+
     def _focus_menu(self) -> None:
         """메뉴에 포커스를 설정합니다."""
         try:
-            log_menu = self.query_one("#log-menu", ListView)
-            log_menu.focus()
+            self.query_one("Sidebar ListView", ListView).focus()
         except Exception as e:
             self.log.error(f"Menu focus failed: {e}")
     
@@ -287,123 +237,54 @@ class LogsScreen(Screen):
     # Menu Selection
     # ═══════════════════════════════════════════════════════════════════════
     
-    @on(ListView.Selected)
-    def handle_menu_selection(self, event: ListView.Selected) -> None:
-        """메뉴 항목 선택을 처리합니다."""
+    def on_nav_selected(self, source_id: str) -> None:
+        """메뉴 항목 선택을 처리합니다 (BaseScreen 라우팅)."""
         try:
-            item = event.item
-            
-            if item.disabled:
-                return
-            
-            item_id = item.id if item.id else ""
-            self.log.info(f"Log menu selected: id='{item_id}'")
-            
-            # item.id로 처리 (menu-{source_id} 형식)
-            if item_id == "menu-back":
+            self.log.info(f"Log menu selected: id='{source_id}'")
+
+            if source_id == "back":
                 self.action_go_back()
                 return
-            elif item_id == "menu-inspection_summary":
+            elif source_id == "inspection_summary":
                 self._current_log = "inspection_summary"
                 self._show_inspection_summary()
-            elif item_id == "menu-kafka":
+            elif source_id == "kafka":
                 self._current_log = "kafka"
                 self._show_kafka_status()
-            elif item_id == "menu-elasticsearch":
+            elif source_id == "elasticsearch":
                 self._current_log = "elasticsearch"
                 self._show_elasticsearch_status()
-            elif item_id.startswith("menu-"):
-                source_id = item_id.replace("menu-", "")
-                text = self._menu_texts.get(item_id, source_id)
+            else:
+                text = self._item_text.get(source_id, source_id)
                 self._current_log = source_id
                 self._show_log_content(source_id, text)
-            
+
             # content-title 업데이트
             try:
-                text = self._menu_texts.get(item_id, item_id.replace("menu-", "").replace("_", " ").title())
-                if item_id == "menu-back":
-                    pass
-                else:
-                    self.query_one("#content-title", Static).update(text.strip())
+                self.query_one("#content-title", Static).update(
+                    self._item_text.get(source_id, source_id).strip()
+                )
             except Exception:
                 pass
             # 선택 후 메뉴 스타일 업데이트
             self._update_menu_styles()
-        
+
         except Exception as e:
             self.log.error(f"Menu selection error: {e}")
-    
-    @on(ListView.Highlighted)
-    def handle_menu_highlight(self, event: ListView.Highlighted) -> None:
-        """메뉴 하이라이트 처리 - 키보드 이동 시 시각적 피드백."""
-        try:
-            log_menu = self.query_one("#log-menu", ListView)
-            
-            for item in log_menu.children:
-                if isinstance(item, ListItem) and item.id:
-                    # disabled 항목은 건드리지 않음
-                    if item.disabled:
-                        continue
-                    
-                    label = item.query_one(Label)
-                    text = self._menu_texts.get(item.id, "")
-                    
-                    if not text:
-                        continue
-                    
-                    if item == event.item:
-                        # 현재 하이라이트된 항목 (키보드 커서 위치)
-                        label.update(f"[reverse] ▸ {text} [/]")
-                    elif self._is_current_log(item.id):
-                        # 현재 선택된 로그 (Enter로 선택한 항목)
-                        label.update(f"[cyan]▸ {text}[/]")
-                    else:
-                        # 일반 항목
-                        label.update(f"  {text}")
-        except Exception as e:
-            self.log.error(f"Highlight error: {e}")
-    
-    def _is_current_log(self, menu_id: str) -> bool:
-        """메뉴 ID가 현재 선택된 로그인지 확인합니다."""
-        if not self._current_log:
-            return False
-        expected_menu_id = f"menu-{self._current_log}"
-        return menu_id == expected_menu_id
-    
+
     def _update_menu_styles(self) -> None:
-        """메뉴 스타일을 업데이트합니다."""
+        """현재 선택된 로그 항목에 지속 마커(▸)를 표시합니다."""
         try:
-            log_menu = self.query_one("#log-menu", ListView)
-            
-            for item in log_menu.children:
-                if isinstance(item, ListItem) and item.id:
-                    if item.disabled:
-                        continue
-                    
-                    label = item.query_one(Label)
-                    text = self._menu_texts.get(item.id, "")
-                    
-                    if not text:
-                        continue
-                    
-                    if self._is_current_log(item.id):
-                        label.update(f"[cyan]▸ {text}[/]")
-                    else:
-                        label.update(f"  {text}")
-        except Exception as e:
-            self.log.error(f"Menu style update error: {e}")
-    
-    def _extract_label_text(self, label: Label) -> str:
-        """Label에서 텍스트를 추출합니다."""
-        try:
-            if hasattr(label, 'renderable'):
-                import re
-                text = str(label.renderable)
-                text = re.sub(r'\[/?[^\]]+\]', '', text)
-                return text
+            sidebar = self.query_one(Sidebar)
         except Exception:
-            pass
-        return "Unknown"
+            return
+        for sid, text in self._item_text.items():
+            if sid == "back":
+                sidebar.update_item_label("back", "  ← Back")
+            elif sid == self._current_log:
+                sidebar.update_item_label(sid, f"[cyan]▸ {text}[/]")
+            else:
+                sidebar.update_item_label(sid, f"  {text}")
     
     # ═══════════════════════════════════════════════════════════════════════
     # Log Content Display
@@ -648,7 +529,7 @@ class LogsScreen(Screen):
             self._current_log = None
             self._show_welcome_message()
             try:
-                self.query_one("#log-menu", ListView).focus()
+                self.query_one("Sidebar ListView", ListView).focus()
             except Exception:
                 pass
         else:
