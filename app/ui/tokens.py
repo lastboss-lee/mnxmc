@@ -155,6 +155,34 @@ def status_badge(state: str, label: str = "") -> str:
     return text
 
 
+def panel(title: str, body: str, width: int = 60, color: str = Color.PRIMARY) -> str:
+    """
+    카드/패널 형태의 프레임 Rich 마크업 문자열 반환.
+
+    상단에 제목이 박힌 테두리, 본문은 2칸 들여쓰기. 본문에 Rich 마크업이
+    포함돼도 폭 계산이 어긋나지 않도록 좌우 세로선은 생략하고 상/하단만 그린다.
+    모든 화면이 동일한 카드 룩을 공유하도록 한다.
+
+    Args:
+        title: 카드 제목 (평문)
+        body:  본문 (여러 줄 가능, Rich 마크업 허용)
+        width: 카드 폭(셀)
+        color: 테두리 색
+
+    Returns:
+        Rich 마크업 문자열
+    """
+    inner = max(10, width - 2)
+    dashes = max(0, inner - len(title) - 3)
+    top = f"[{color}]╭─ {title} " + Glyph.H_LINE * dashes + "╮[/]"
+    bottom = f"[{color}]╰" + Glyph.H_LINE * inner + "╯[/]"
+    lines = [top]
+    for ln in body.split("\n"):
+        lines.append(f"  {ln}")
+    lines.append(bottom)
+    return "\n".join(lines)
+
+
 def meter(percent: float, width: int = 20, warn: float = 70.0,
           crit: float = 90.0) -> str:
     """

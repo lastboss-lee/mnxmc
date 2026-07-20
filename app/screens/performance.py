@@ -19,6 +19,7 @@ from textual.widgets import Static, ListView
 from textual.containers import ScrollableContainer
 from textual.binding import Binding
 
+from app.ui import tokens
 from app.ui.screen import BaseScreen
 from app.ui.widgets import SectionTitle
 
@@ -170,15 +171,15 @@ class PerformanceScreen(BaseScreen):
                 return "[red]Performance monitor not available[/]"
             
             summary = self.app.perf_monitor.get_performance_summary()
-            
+
             content = "[bold cyan]═══ Performance Monitor ═══[/]\n\n"
-            content += self._format_cpu_summary(summary)
-            content += self._format_memory_summary(summary)
-            content += self._format_disk_summary()
-            content += self._format_network_summary(summary)
-            content += self._format_process_summary()
+            content += tokens.panel("CPU", self._format_cpu_summary(summary).strip("\n")) + "\n\n"
+            content += tokens.panel("Memory", self._format_memory_summary(summary).strip("\n")) + "\n\n"
+            content += tokens.panel("Disk I/O", self._format_disk_summary().strip("\n")) + "\n\n"
+            content += tokens.panel("Network I/O", self._format_network_summary(summary).strip("\n")) + "\n\n"
+            content += tokens.panel("Top Processes", self._format_process_summary().strip("\n")) + "\n"
             content += self._get_footer()
-            
+
             return content
         except Exception as e:
             return f"[red]Error: {e}[/]"
@@ -478,7 +479,7 @@ class PerformanceScreen(BaseScreen):
     
     def _format_cpu_summary(self, summary: dict) -> str:
         """CPU 요약."""
-        content = "[yellow]CPU Usage:[/]\n"
+        content = ""
         
         cpu_total = summary.get('cpu_total', 0)
         cpu_bar = self._create_bar(cpu_total)
@@ -510,7 +511,7 @@ class PerformanceScreen(BaseScreen):
     
     def _format_memory_summary(self, summary: dict) -> str:
         """메모리 요약."""
-        content = "[yellow]Memory Usage:[/]\n"
+        content = ""
         
         memory = summary.get('memory', {})
         total = memory.get('total_gb', 0)
@@ -529,7 +530,7 @@ class PerformanceScreen(BaseScreen):
     
     def _format_disk_summary(self) -> str:
         """디스크 I/O 요약."""
-        content = "[yellow]Disk I/O:[/]\n"
+        content = ""
 
         try:
             disk_mon = self.app.disk_monitor
@@ -564,7 +565,7 @@ class PerformanceScreen(BaseScreen):
     
     def _format_network_summary(self, summary: dict) -> str:
         """네트워크 요약."""
-        content = "[yellow]Network I/O:[/]\n"
+        content = ""
         
         network = summary.get('network', {})
         
@@ -592,7 +593,7 @@ class PerformanceScreen(BaseScreen):
     
     def _format_process_summary(self) -> str:
         """프로세스 요약."""
-        content = "[yellow]Top Processes (by CPU):[/]\n"
+        content = ""
         
         try:
             processes = self.app.perf_monitor.get_top_processes(8)
@@ -631,7 +632,7 @@ class PerformanceScreen(BaseScreen):
             filled = int((percentage / 100) * width)
             filled = max(0, min(width, filled))
             
-            bar = "▓" * filled + "░" * (width - filled)
+            bar = "█" * filled + "░" * (width - filled)
             
             if percentage >= 90:
                 color = "red"
@@ -650,7 +651,7 @@ class PerformanceScreen(BaseScreen):
             filled = int((percentage / 100) * width)
             filled = max(0, min(width, filled))
             
-            bar = "▓" * filled + "░" * (width - filled)
+            bar = "█" * filled + "░" * (width - filled)
             
             if percentage >= 90:
                 color = "red"
