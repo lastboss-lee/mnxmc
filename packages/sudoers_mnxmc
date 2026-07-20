@@ -1,0 +1,92 @@
+# /etc/sudoers.d/mnxmc
+# MNX Management Console — sands 사용자 NOPASSWD 권한 설정
+#
+# 설치 방법:
+#   sudo cp packages/sudoers_mnxmc /etc/sudoers.d/mnxmc
+#   sudo chmod 440 /etc/sudoers.d/mnxmc
+#   sudo visudo -c   # 문법 검증
+#
+# 재적용 (install_packages.sh 포함):
+#   sudo bash packages/install_packages.sh
+#
+# 목적: sands 유저가 MNXMC TUI에서 하드웨어 정보 조회, 설정 파일 쓰기,
+#       네트워크 설정, 서비스 제어, 전원 제어를 패스워드 없이 수행할 수 있도록
+#       특정 명령어에 한해 NOPASSWD sudo 허용
+
+# ── requiretty 예외 (TUI/SSH 환경에서 TTY 없이 sudo 허용) ──────────────────────
+Defaults!/usr/sbin/dmidecode             !requiretty
+Defaults!/usr/local/bin/storcli64        !requiretty
+Defaults!/usr/local/bin/perccli64        !requiretty
+Defaults!/opt/MegaRAID/perccli/perccli64 !requiretty
+Defaults!/usr/bin/graidctl               !requiretty
+Defaults!/usr/sbin/smartctl              !requiretty
+Defaults!/usr/sbin/ip                    !requiretty
+Defaults!/usr/sbin/netplan               !requiretty
+Defaults!/usr/bin/systemctl              !requiretty
+Defaults!/usr/sbin/ethtool               !requiretty
+Defaults!/usr/bin/tee                    !requiretty
+Defaults!/usr/bin/rm                     !requiretty
+Defaults!/usr/sbin/ufw                   !requiretty
+Defaults!/usr/bin/fio                    !requiretty
+Defaults!/usr/bin/install                !requiretty
+# Power Control — /sbin 은 Ubuntu 20.04+ 에서 /usr/sbin 심볼릭 링크
+Defaults!/usr/sbin/reboot                !requiretty
+Defaults!/usr/sbin/shutdown              !requiretty
+Defaults!/sbin/reboot                    !requiretty
+Defaults!/sbin/shutdown                  !requiretty
+
+# ── 하드웨어 정보 조회 ──────────────────────────────────────────────────────────
+sands ALL=(root) NOPASSWD: /usr/sbin/dmidecode
+sands ALL=(root) NOPASSWD: /usr/local/bin/storcli64
+sands ALL=(root) NOPASSWD: /usr/local/bin/perccli64
+sands ALL=(root) NOPASSWD: /opt/MegaRAID/perccli/perccli64
+sands ALL=(root) NOPASSWD: /usr/bin/graidctl
+sands ALL=(root) NOPASSWD: /usr/sbin/smartctl
+
+# ── 네트워크 설정 ───────────────────────────────────────────────────────────────
+sands ALL=(root) NOPASSWD: /usr/sbin/ip
+sands ALL=(root) NOPASSWD: /usr/sbin/netplan
+sands ALL=(root) NOPASSWD: /usr/sbin/ethtool
+
+# ── 서비스 제어 (ServiceScreen 인증 후 systemctl 실행) ──────────────────────────
+sands ALL=(root) NOPASSWD: /usr/bin/systemctl
+
+# ── Firewall (UFW) ────────────────────────────────────────────────────────────
+sands ALL=(root) NOPASSWD: /usr/sbin/ufw
+sands ALL=(root) NOPASSWD: /usr/bin/ufw
+
+# ── 설정 파일 쓰기 (tee 경로 제한 — 임의 경로 쓰기 방지) ──────────────────────
+sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/mnx/etc/config.ini
+sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/mnx/etc/mnx_config.json
+sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/mnx/etc/mnxmc_console.json
+sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/service_control/settings.json
+
+# ── Suricata 설정 파일 쓰기 (캡처 인터페이스 동기화) ─────────────────────────
+sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/suricata/suricata.yaml
+
+# ── SSH 세션 정책 파일 쓰기 ───────────────────────────────────────────────────
+sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/ssh/sshd_config.d/mnxmc.conf
+
+# ── 네트워크 설정 파일 쓰기 (netplan YAML, promisc service) ───────────────────
+sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/netplan/70-netplan-set.yaml
+sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/netplan/50-cloud-init.yaml
+sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/promisc-*.service
+sands ALL=(root) NOPASSWD: /usr/bin/rm -f /etc/systemd/system/promisc-*.service
+sands ALL=(root) NOPASSWD: /usr/bin/chmod 600 /etc/netplan/*
+
+# ── Disk Perf Test: fio 실행, 테스트 디렉토리 생성 및 정리 ──────────────────────
+# 코드: sudo -n /usr/bin/install -d -m 755 <path>/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/fio
+sands ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 /application/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 /data/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 /pipeline/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/rm -rf /application/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/rm -rf /data/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/rm -rf /pipeline/.fio_perf_tmp
+
+# ── System Power Control ──────────────────────────────────────────────────────
+# Ubuntu 20.04+ 에서 /sbin → usr/sbin 심볼릭 링크이므로 양쪽 모두 허용
+sands ALL=(root) NOPASSWD: /sbin/reboot
+sands ALL=(root) NOPASSWD: /sbin/shutdown -h now
+sands ALL=(root) NOPASSWD: /usr/sbin/reboot
+sands ALL=(root) NOPASSWD: /usr/sbin/shutdown -h now

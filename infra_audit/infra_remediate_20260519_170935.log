@@ -1,0 +1,115 @@
+[2026-05-19 17:09:35][START] 조치 시작 - 보고서: /mnxmc/infra_audit/infra_audit_report_20260519_165201.txt | 모드: DRY-RUN
+[2026-05-19 17:09:35][U-01] 조치 시작: PermitRootLogin no 설정
+[2026-05-19 17:09:35][BACKUP] /etc/ssh/sshd_config -> /mnxmc/infra_audit/backup_20260519_170935/_etc_ssh_sshd_config.bak
+  -> [DRY-RUN] sed: PermitRootLogin no 설정
+  -> [DRY-RUN] systemctl reload ssh
+[2026-05-19 17:09:35][U-02] 조치 시작: pwquality + login.defs 설정
+[2026-05-19 17:09:35][BACKUP] /etc/login.defs -> /mnxmc/infra_audit/backup_20260519_170935/_etc_login.defs.bak
+[2026-05-19 17:09:35][BACKUP] /etc/pam.d/common-password -> /mnxmc/infra_audit/backup_20260519_170935/_etc_pam.d_common-password.bak
+  -> [DRY-RUN] apt install -y libpam-pwquality
+  -> [DRY-RUN] pwquality.conf: minlen=10, dcredit=-1, ucredit=-1, lcredit=-1, ocredit=-1
+  -> [DRY-RUN] login.defs: PASS_MAX_DAYS=90, PASS_MIN_DAYS=1
+  -> [DRY-RUN] common-password: pam_pwquality.so 추가
+[2026-05-19 17:09:35][U-03] 조치 시작: pam_faillock 설정
+[2026-05-19 17:09:35][BACKUP] /etc/security/faillock.conf -> /mnxmc/infra_audit/backup_20260519_170935/_etc_security_faillock.conf.bak
+[2026-05-19 17:09:35][BACKUP] /etc/pam.d/common-auth -> /mnxmc/infra_audit/backup_20260519_170935/_etc_pam.d_common-auth.bak
+[2026-05-19 17:09:35][BACKUP] /etc/pam.d/common-account -> /mnxmc/infra_audit/backup_20260519_170935/_etc_pam.d_common-account.bak
+  -> [DRY-RUN] faillock.conf: deny=5, unlock_time=600, fail_interval=900
+  -> [DRY-RUN] common-auth: pam_faillock.so preauth/authfail 추가
+  -> [DRY-RUN] common-account: pam_faillock.so 추가
+[2026-05-19 17:09:35][U-12] 조치 시작: TMOUT=600 설정
+[2026-05-19 17:09:35][BACKUP] /etc/profile -> /mnxmc/infra_audit/backup_20260519_170935/_etc_profile.bak
+  -> [DRY-RUN] /etc/profile에 export TMOUT=600 추가 (중복 방지, dot라인 보호)
+[2026-05-19 17:09:35][U-14] SKIP ([양호])
+[2026-05-19 17:09:35][U-25] 조치 시작: world writable 파일 other-write 권한 제거
+  -> [DRY-RUN] chmod o-w 대상 파일 목록:
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/pwshtok.cvd
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.126
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/epoc.xmd
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.048
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.561
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.003
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.c00
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/amml.cvd
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.224
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.450
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.432
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.076
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.i96
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.284
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.194
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/e_spyw.i40
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.015
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/hpe.cvd
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.i32
+  ->   chmod o-w /opt/scanengine/Update1/Plugins/emalware.402
+[2026-05-19 17:09:35][U-64] 조치 시작: 보안 패키지 업데이트
+  -> [DRY-RUN] apt-mark hold suricata  # 설정파일 보호
+  -> [DRY-RUN] DEBIAN_FRONTEND=noninteractive apt-get update && apt-get upgrade -y --force-confold
+  -> [DRY-RUN] apt-mark unhold suricata
+  -> [DRY-RUN] 업그레이드 대상 패키지 수: 47
+  -> [DRY-RUN] hold 대상: suricata (설정파일 충돌 방지)
+[2026-05-19 17:09:36][U-67] 조치 시작: /var/log 권한 설정
+  -> [DRY-RUN] chmod 755 /var/log
+  -> [DRY-RUN] chmod 664 /var/log/wtmp (logrotate 호환)
+  -> [DRY-RUN] chmod 600 /var/log/btmp
+  -> [DRY-RUN] chmod 644 /var/log/lastlog
+[2026-05-19 17:09:36][U-06] SKIP (사용자 거부)
+[2026-05-19 17:09:36][U-07] SKIP ([양호])
+[2026-05-19 17:09:36][U-33] SKIP ([양호])
+[2026-05-19 17:09:36][U-62] SKIP ([양호])
+[2026-05-19 17:09:36][MANUAL] U-04: SKIP ([양호])
+[2026-05-19 17:09:36][MANUAL] U-05: SKIP ([양호])
+[2026-05-19 17:09:36][MANUAL] U-08: SKIP ([양호])
+[2026-05-19 17:09:36][MANUAL] U-09: SKIP ([양호])
+[2026-05-19 17:09:36][MANUAL] U-10: SKIP ([양호])
+[2026-05-19 17:09:36][MANUAL] U-11: SKIP ([양호])
+[2026-05-19 17:09:36][MANUAL] U-13: SKIP ([양호])
+[2026-05-19 17:09:39][MANUAL] U-15: SKIP ([양호])
+[2026-05-19 17:09:39][MANUAL] U-16: SKIP ([양호])
+[2026-05-19 17:09:39][MANUAL] U-17: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-18: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-19: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-20: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-21 [/etc/(r)syslog.conf 소유자 및 권한]: 수동 조치 필요
+[2026-05-19 17:09:40][MANUAL] U-22: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-23 [SUID/SGID 설정 파일 점검]: 수동 조치 필요
+[2026-05-19 17:09:40][MANUAL] U-26: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-27: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-28 [접속 IP 및 포트 제한 (방화벽)]: 수동 조치 필요
+[2026-05-19 17:09:40][MANUAL] U-29: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-30: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-31: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-32: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-34: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-35: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-36: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-37 [crontab 설정파일 권한]: 수동 조치 필요
+[2026-05-19 17:09:40][MANUAL] U-38: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-39: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-40: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-41: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-42 [불필요한 RPC 서비스 비활성화]: 수동 조치 필요
+[2026-05-19 17:09:40][MANUAL] U-43: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-44: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-45: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-46: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-47: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-48: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-49: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-50: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-51: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-52: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-53: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-54: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-55: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-56: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-57: SKIP ([N/A])
+[2026-05-19 17:09:40][MANUAL] U-58 [불필요한 SNMP 서비스 점검]: 수동 조치 필요
+[2026-05-19 17:09:40][MANUAL] U-59 [안전한 SNMP 버전 사용]: 수동 조치 필요
+[2026-05-19 17:09:40][MANUAL] U-60 [SNMP Community String 복잡성]: 수동 조치 필요
+[2026-05-19 17:09:40][MANUAL] U-61: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-63: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-65: SKIP ([양호])
+[2026-05-19 17:09:40][MANUAL] U-66: SKIP ([양호])
+[2026-05-19 17:09:40][END] 조치 완료 - 적용: 0개, SKIP: 4개, 미승인SKIP: 1개, MANUAL취약: 8개

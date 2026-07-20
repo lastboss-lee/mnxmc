@@ -1,0 +1,138 @@
+MNX 보안 패치 As‑Is / To‑Be 리포트
+
+2026‑05‑19 15:34:38 KST
+
+MNX 보안 패치 검토 리포트
+항목
+
+값
+
+생성 시각
+호스트
+OS
+커널
+대상 패치
+세션 ID
+
+2026‑05‑19 15:34:38 KST
+sands‑test
+Ubuntu 22.04.5 LTS
+5.15.0‑174‑generic
+1건
+20260519_153438
+
+패치 요약
+ID
+
+우선순위
+
+대상 파일
+
+제목
+
+P0‑1
+
+P0
+
+infra_remediate.sh
+
+do_u25 화이트리스트에 운영 디렉토리 추가
+
+[P0‑1] do_u25 화이트리스트에 운영 디렉토리 추가
+속성
+
+값
+
+대상 파일
+영향 라인
+우선순위
+변경 분류
+
+/mnxmc/infra_audit/infra_remediate.sh
+948‑957
+P0
+추가 (case 패턴 확장)
+
+적용 사유
+현재 do_u25 의 case 화이트리스트에는 /etc/* 와 /usr/bin/* 등 시스템 핵심 파일만 등록되어 있어, –auto 실행 시
+/logs/suricata (0777) 같은 운영 디렉토리가 chmod o‑w 대상으로 진입한다. 그 결과 suricata 데몬이 로그 쓰기 권한
+을 잃고 EVE/JSON 적재가 중단되는 운영 장애가 발생할 수 있다.
+예상 동작 변화
+현재: chmod o‑w /logs/suricata 가 실행되어 suricata 로그 적재 중단. 변경 후: /logs/, /data/, /application/,
+/opt/mnx/ 가 SKIP (시스템/운영 디렉토리 보호) 로그 출력 후 건너뜀.
+AS‑IS (현재 코드)
+# 시스템 필수 파일 이중 보호
+case "$F" in
+/etc/bash.bashrc￨/etc/profile￨/etc/environment￨\
+/etc/profile.d/*￨/root/.bashrc￨/root/.profile￨\
+/root/.bash_profile￨/root/.bash_logout￨\
+1
+
+/usr/bin/*￨/usr/sbin/*￨/bin/*￨/sbin/*￨\
+/usr/lib/*￨/usr/lib64/*￨/lib/*￨/lib64/*)
+log "U‑25" " SKIP (시스템 핵심 파일 보호): $F"
+continue
+;;
+esac
+TO‑BE (변경 후)
+# 시스템 필수 파일 + MNX 운영 디렉토리 이중 보호
+case "$F" in
+/etc/bash.bashrc￨/etc/profile￨/etc/environment￨\
+/etc/profile.d/*￨/root/.bashrc￨/root/.profile￨\
+/root/.bash_profile￨/root/.bash_logout￨\
+/usr/bin/*￨/usr/sbin/*￨/bin/*￨/sbin/*￨\
+/usr/lib/*￨/usr/lib64/*￨/lib/*￨/lib64/*￨\
+/data￨/data/*￨/logs￨/logs/*￨\
+/application￨/application/*￨\
+/opt/mnx￨/opt/mnx/*)
+log "U‑25" " SKIP (시스템/운영 디렉토리 보호): $F"
+continue
+;;
+esac
+Unified Diff
+@@ ‑1,11 +1,14 @@
+‑
+# 시스템 필수 파일 이중 보호
++
+# 시스템 필수 파일 + MNX 운영 디렉토리 이중 보호
+case "$F" in
+/etc/bash.bashrc￨/etc/profile￨/etc/environment￨\
+/etc/profile.d/*￨/root/.bashrc￨/root/.profile￨\
+/root/.bash_profile￨/root/.bash_logout￨\
+/usr/bin/*￨/usr/sbin/*￨/bin/*￨/sbin/*￨\
+‑
+/usr/lib/*￨/usr/lib64/*￨/lib/*￨/lib64/*)
+‑
+log "U‑25" " SKIP (시스템 핵심 파일 보호): $F"
++
+/usr/lib/*￨/usr/lib64/*￨/lib/*￨/lib64/*￨\
++
+/data￨/data/*￨/logs￨/logs/*￨\
++
+/application￨/application/*￨\
++
+/opt/mnx￨/opt/mnx/*)
++
+log "U‑25" " SKIP (시스템/운영 디렉토리 보호): $F"
+continue
+;;
+esac
+적용 후 검증
+bash ‑n /mnxmc/infra_audit/infra_remediate.sh
+bash ‑n "$PATCH_FILE" ￨￨ return 1;
+grep ‑q "/logs￨/logs/\*" "$PATCH_FILE" ￨￨ return 1;
+grep ‑q "SKIP (시스템/운영 디렉토리 보호)" "$PATCH_FILE" ￨￨ return 1;
+return 0
+
+롤백 안내
+본 리포트의 패치를 적용한 후 문제가 발생하면 다음 명령으로 전체 복구:
+sudo bash /mnxmc/infra_audit/apply_security_patches.sh ‑‑rollback 20260519_153438
+
+2
+
+snapshot.tar.gz 는 /mnxmc/infra_audit/.patches/< 세션 >/snapshot.tar.gz 에 저장되며 /mnxmc/infra_audit/
+디렉토리 전체와 권한/소유자/SHA256 메타데이터를 포함합니다.
+
+3
+
+

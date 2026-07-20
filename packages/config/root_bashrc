@@ -1,0 +1,20 @@
+# ===== SANDS LAB 전역 설정 =====
+# 색상 설정
+export LS_COLORS="\
+rs=0:\
+di=1;36:\
+ln=1;35:\
+so=1;35:\
+pi=1;33:\
+ex=1;31:\
+bd=1;33:\
+cd=1;33:\
+*.tar=0;31:*.tgz=0;31:*.zip=0;31:*.gz=0;31:*.bz2=0;31:*.xz=0;31:\
+*.jpg=0;35:*.jpeg=0;35:*.png=0;35:*.gif=0;35:*.mp4=0;35:*.mp3=0;35:*.aac=0;35:*.mkv=0;35:\
+"
+alias ls='ls --color=auto'
+# 히스토리 시간 표시
+export HISTTIMEFORMAT="%Y-%m-%d %H:%M:%S "
+
+# mnxmon alias
+alias mnxmon='watch -n 1 '\''curl -s http://localhost:9200/arkime_stats/_doc/$(hostname) | jq "._source | {totalPackets, packetQueue, closeQueue, totalDropped}"'\'''

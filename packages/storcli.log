@@ -1,0 +1,84 @@
+Tue Mar 24 13:02:46.356 2026 : CtMain::main processing for command=/ call show 
+Tue Mar 24 13:02:46.357 2026 : Entering LinuxControllerExplorer::explore 
+Tue Mar 24 13:02:46.357 2026 : Entering LinuxControllerExplorer::getCtrlCount
+Tue Mar 24 13:02:46.357 2026 : LinuxControllerExplorer::getCtrlCount _hDvr=-1 _hDvrSwr =-1
+Tue Mar 24 13:02:46.357 2026 : LinuxControllerExplorer::explore ctrlCount=1
+Tue Mar 24 13:02:46.357 2026 : returning LinuxControllerExplorer::explore ctrlIdListPtr
+Tue Mar 24 13:02:46.357 2026 : SlItControllerExplorer::explore - Entering
+Tue Mar 24 13:02:46.357 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 24 13:02:46.358 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 24 13:02:46.358 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 24 13:02:46.358 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 24 13:02:46.358 2026 : SlItControllerExplorer::explore - Getting the StoreLIB instance for SAS3.5 IT controller
+Tue Mar 24 13:02:46.358 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 24 13:02:46.368 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 24 13:02:46.368 2026 : SlItControllerExplorer::explore - Issuing SL_GET_CTRL_LIST to SLIT
+Tue Mar 24 13:02:46.368 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 24 13:02:46.368 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 24 13:02:46.368 2026 : SlItControllerExplorer::explore - Issuing SL_GET_CTRL_LIST to SLIT - retCode:0x0
+Tue Mar 24 13:02:46.368 2026 : SlItControllerExplorer::explore - Controller count:0
+Tue Mar 24 13:02:46.368 2026 : LinuxMfiDataProvider::fireIoctl DCMD=1010000 mbox.w[0]=1 mbox.w[1]=0 mbox.w[2]=0
+Tue Mar 24 13:02:46.368 2026 : LinuxMfiDataProvider::fireIoctl send_ioctl retcode=-1 cmdStatus=255
+Tue Mar 24 13:02:46.368 2026 : LinuxMfiDataProvider::fireIoctl returning with =-1 errno=9
+Tue Mar 24 13:02:46.368 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 24 13:02:46.368 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 24 13:02:46.368 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 24 13:02:46.368 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 24 13:02:46.368 2026 : CtMain::main command completed with retcode=0
+
+Tue Mar 31 06:52:45.438 2026 : CtMain::main processing for command=/ call show 
+Tue Mar 31 06:52:45.438 2026 : Entering LinuxControllerExplorer::explore 
+Tue Mar 31 06:52:45.438 2026 : Entering LinuxControllerExplorer::getCtrlCount
+Tue Mar 31 06:52:45.438 2026 : LinuxControllerExplorer::getCtrlCount _hDvr=-1 _hDvrSwr =-1
+Tue Mar 31 06:52:45.438 2026 : LinuxControllerExplorer::explore ctrlCount=1
+Tue Mar 31 06:52:45.438 2026 : returning LinuxControllerExplorer::explore ctrlIdListPtr
+Tue Mar 31 06:52:45.438 2026 : SlItControllerExplorer::explore - Entering
+Tue Mar 31 06:52:45.438 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 31 06:52:45.439 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 31 06:52:45.439 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 31 06:52:45.439 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 31 06:52:45.439 2026 : SlItControllerExplorer::explore - Getting the StoreLIB instance for SAS3.5 IT controller
+Tue Mar 31 06:52:45.439 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 31 06:52:45.448 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 31 06:52:45.448 2026 : SlItControllerExplorer::explore - Issuing SL_GET_CTRL_LIST to SLIT
+Tue Mar 31 06:52:45.448 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 31 06:52:45.448 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 31 06:52:45.448 2026 : SlItControllerExplorer::explore - Issuing SL_GET_CTRL_LIST to SLIT - retCode:0x0
+Tue Mar 31 06:52:45.448 2026 : SlItControllerExplorer::explore - Controller count:0
+Tue Mar 31 06:52:45.448 2026 : LinuxMfiDataProvider::fireIoctl DCMD=1010000 mbox.w[0]=1 mbox.w[1]=0 mbox.w[2]=0
+Tue Mar 31 06:52:45.448 2026 : LinuxMfiDataProvider::fireIoctl send_ioctl retcode=-1 cmdStatus=255
+Tue Mar 31 06:52:45.448 2026 : LinuxMfiDataProvider::fireIoctl returning with =-1 errno=9
+Tue Mar 31 06:52:45.448 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 31 06:52:45.448 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 31 06:52:45.448 2026 : StorelibItDp::processLibCommand SL request sent
+Tue Mar 31 06:52:45.448 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Tue Mar 31 06:52:45.448 2026 : CtMain::main command completed with retcode=0
+
+Mon Apr 13 16:31:50.781 2026 : CtMain::main processing for command=/ call show 
+Mon Apr 13 16:31:50.781 2026 : Entering LinuxControllerExplorer::explore 
+Mon Apr 13 16:31:50.781 2026 : Entering LinuxControllerExplorer::getCtrlCount
+Mon Apr 13 16:31:50.781 2026 : LinuxControllerExplorer::getCtrlCount _hDvr=-1 _hDvrSwr =-1
+Mon Apr 13 16:31:50.781 2026 : LinuxControllerExplorer::explore ctrlCount=1
+Mon Apr 13 16:31:50.781 2026 : returning LinuxControllerExplorer::explore ctrlIdListPtr
+Mon Apr 13 16:31:50.781 2026 : SlItControllerExplorer::explore - Entering
+Mon Apr 13 16:31:50.781 2026 : StorelibItDp::processLibCommand SL request sent
+Mon Apr 13 16:31:50.782 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Mon Apr 13 16:31:50.782 2026 : StorelibItDp::processLibCommand SL request sent
+Mon Apr 13 16:31:50.782 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Mon Apr 13 16:31:50.782 2026 : SlItControllerExplorer::explore - Getting the StoreLIB instance for SAS3.5 IT controller
+Mon Apr 13 16:31:50.782 2026 : StorelibItDp::processLibCommand SL request sent
+Mon Apr 13 16:31:50.793 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Mon Apr 13 16:31:50.793 2026 : SlItControllerExplorer::explore - Issuing SL_GET_CTRL_LIST to SLIT
+Mon Apr 13 16:31:50.793 2026 : StorelibItDp::processLibCommand SL request sent
+Mon Apr 13 16:31:50.793 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Mon Apr 13 16:31:50.793 2026 : SlItControllerExplorer::explore - Issuing SL_GET_CTRL_LIST to SLIT - retCode:0x0
+Mon Apr 13 16:31:50.793 2026 : SlItControllerExplorer::explore - Controller count:0
+Mon Apr 13 16:31:50.793 2026 : LinuxMfiDataProvider::fireIoctl DCMD=1010000 mbox.w[0]=1 mbox.w[1]=0 mbox.w[2]=0
+Mon Apr 13 16:31:50.793 2026 : LinuxMfiDataProvider::fireIoctl send_ioctl retcode=-1 cmdStatus=255
+Mon Apr 13 16:31:50.793 2026 : LinuxMfiDataProvider::fireIoctl returning with =-1 errno=9
+Mon Apr 13 16:31:50.793 2026 : StorelibItDp::processLibCommand SL request sent
+Mon Apr 13 16:31:50.793 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Mon Apr 13 16:31:50.793 2026 : StorelibItDp::processLibCommand SL request sent
+Mon Apr 13 16:31:50.793 2026 : StorelibItDp::processLibCommand SL responded with retcode=0
+Mon Apr 13 16:31:50.793 2026 : CtMain::main command completed with retcode=0
+

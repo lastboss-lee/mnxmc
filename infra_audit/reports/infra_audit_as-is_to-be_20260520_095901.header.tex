@@ -1,0 +1,66 @@
+% ---- MNX KISA 보고서 커스텀 헤더 ----
+\definecolor{mnxdark}{HTML}{1F2D3D}
+\definecolor{mnxblue}{HTML}{0D6EFD}
+\definecolor{mnxaccent}{HTML}{0EA5E9}
+\definecolor{vulnred}{HTML}{C0392B}
+\definecolor{goodgreen}{HTML}{15803D}
+\definecolor{nagray}{HTML}{6B7280}
+\definecolor{tblhead}{HTML}{E5EDF7}
+\definecolor{codebg}{HTML}{F6F8FA}
+\definecolor{coderule}{HTML}{D7DDE4}
+
+% --- CJK 줄바꿈 — 긴 한글 문자열이 자간을 벌리지 않도록 ---
+\usepackage{xeCJK}
+\xeCJKsetup{CJKspace=true}
+\XeTeXlinebreaklocale "ko"
+\XeTeXlinebreakskip = 0pt plus 1pt minus 0.1pt
+\XeTeXlinebreakpenalty = 0
+
+% --- 긴 경로/URL 자동 줄바꿈 ---
+\usepackage{fvextra}
+\usepackage{mdframed}
+\AtBeginDocument{%
+  \DefineVerbatimEnvironment{Highlighting}{Verbatim}{%
+    breaklines=true,breakanywhere=true,%
+    breaksymbolleft={\textcolor{mnxaccent}{\tiny\ensuremath{\hookrightarrow}}},%
+    commandchars=\\\{\},fontsize=\small,xleftmargin=4pt}%
+  \renewenvironment{Shaded}{%
+    \begin{mdframed}[backgroundcolor=codebg,linecolor=coderule,linewidth=0.4pt,%
+      innerleftmargin=6pt,innerrightmargin=6pt,innertopmargin=4pt,%
+      innerbottommargin=4pt,skipabove=4pt,skipbelow=4pt]\small}%
+    {\end{mdframed}}%
+  \fvset{breaklines=true,breakanywhere=true,fontsize=\small}%
+}
+
+% --- 표 디자인 ---
+\usepackage{longtable,booktabs,array}
+\renewcommand{\arraystretch}{1.25}
+\setlength{\LTpre}{4pt}
+\setlength{\LTpost}{6pt}
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{\fill}
+
+% --- 섹션 헤더 컬러 + 룰 ---
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\color{mnxdark}}{\thesection.}{0.6em}{}[{\color{mnxaccent}\titlerule[0.8pt]}]
+\titleformat{\subsection}{\large\bfseries\color{mnxdark}}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{mnxblue}}{}{0pt}{}
+\titlespacing*{\section}{0pt}{1.4ex plus 0.4ex minus 0.2ex}{1.0ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{1.0ex plus 0.3ex minus 0.2ex}{0.6ex plus 0.2ex}
+
+% --- 페이지 헤더/푸터 ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyhead[L]{\color{mnxdark}\small\textbf{KISA 2026 보안 점검 보고서}}
+\fancyhead[R]{\color{mnxdark}\small sands-test}
+\fancyfoot[C]{\color{mnxdark}\small\thepage}
+
+% --- 본문 줄바꿈 보강 ---
+\setlength{\emergencystretch}{3em}
+\sloppy
+
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}

@@ -1,0 +1,514 @@
+"""
+Command Shell Screen
+
+인증된 사용자를 위한 대화형 셸 접근 화면입니다.
+
+Features:
+    - 셸 접근을 위한 인증
+    - 대화형 bash 셸 실행
+    - 셸 종료 후 콘솔로 복귀
+"""
+
+from textual.app import ComposeResult
+from textual.screen import Screen
+from textual.widgets import Footer, Static, ListView, ListItem, Label, Input
+from textual.containers import Container, Vertical, Center
+from textual.binding import Binding
+from textual import on
+from app.widgets import CustomHeader
+import subprocess
+import os
+import sys
+import pwd
+
+
+class ShellScreen(Screen):
+    """
+    Command Shell 화면.
+    
+    인증 후 대화형 bash 셸을 실행합니다.
+    """
+    
+    CSS = """
+    ShellScreen {
+        background: #0c0c0c;
+    }
+
+    #main-container {
+        width: 100%;
+        height: 100%;
+        layout: horizontal;
+        background: #0c0c0c;
+    }
+
+    #left-panel {
+        width: 25%;
+        height: 100%;
+        background: #0c0c0c;
+        border-right: solid #5fd7d7;
+    }
+    
+    #menu-title {
+        width: 100%;
+        height: 1;
+        background: #333333;
+        color: white;
+        text-style: bold;
+        padding: 0 2;
+    }
+
+    #menu-list {
+        width: 100%;
+        height: 1fr;
+        background: #0c0c0c;
+        border: none;
+        padding: 1 0;
+    }
+
+    #menu-list > ListItem {
+        background: #0c0c0c;
+        color: white;
+        height: 1;
+        padding: 0 2;
+    }
+
+    #menu-list > ListItem:hover {
+        background: #5fd7d7;
+        color: black;
+    }
+
+    #menu-list:focus > ListItem.--highlight {
+        background: #5fd7d7;
+        color: black;
+        text-style: bold;
+    }
+
+    #content-panel {
+        width: 1fr;
+        height: 100%;
+        background: #0c0c0c;
+        padding: 0;
+    }
+
+    #content-title {
+        width: 100%;
+        height: 1;
+        background: #333333;
+        color: white;
+        text-style: bold;
+        padding: 0 2;
+    }
+
+    #shell-content {
+        width: 100%;
+        height: 1fr;
+        background: #0c0c0c;
+        color: white;
+        padding: 1 2;
+    }
+    """
+    
+    BINDINGS = [
+        Binding("escape", "go_back", "Back"),
+    ]
+    
+    # 메뉴 항목
+    MENU_ITEMS = [
+        ("back", "← Back"),
+        ("info", "Shell Info"),
+        ("history", "Command History"),
+        ("shell", "Launch Shell"),
+    ]
+    
+    def __init__(self) -> None:
+        super().__init__()
+        self._current_view = "info"
+        self._menu_texts = {}
+        self._shell_active = False  # 이중 실행 방지
+    
+    def compose(self) -> ComposeResult:
+        yield CustomHeader()
+        
+        with Container(id="main-container"):
+            with Container(id="left-panel"):
+                yield Static("Command Shell", id="menu-title")
+                yield ListView(id="menu-list")
+            
+            with Container(id="content-panel"):
+                yield Static("Shell Info", id="content-title")
+                yield Static(self._get_content(), id="shell-content")
+        
+        yield Footer()
+    
+    def on_mount(self) -> None:
+        """화면 마운트 시 초기화."""
+        self.log.info("ShellScreen mounted")
+        
+        # 메뉴 항목 추가
+        try:
+            menu_list = self.query_one("#menu-list", ListView)
+            for item_id, item_text in self.MENU_ITEMS:
+                menu_id = f"menu-{item_id}"
+                item = ListItem(Label(f"  {item_text}"), id=menu_id)
+                self._menu_texts[menu_id] = item_text
+                menu_list.append(item)
+        except Exception as e:
+            self.log.error(f"Menu setup failed: {e}")
+        
+        # 메뉴 초기화
+        self.set_timer(0.1, self._initialize_menu)
+    
+    def _initialize_menu(self) -> None:
+        """메뉴 초기화."""
+        try:
+            menu_list = self.query_one("#menu-list", ListView)
+            menu_list.focus()
+            if menu_list.children:
+                menu_list.index = 1  # "Launch Shell" 선택
+            self._update_menu_selection()
+        except Exception as e:
+            self.log.error(f"Menu init failed: {e}")
+    
+    def _get_content(self) -> str:
+        """현재 뷰에 따른 콘텐츠 생성."""
+        view_methods = {
+            "info": self._get_shell_info,
+            "shell": self._get_shell_prompt,
+            "history": self._get_command_history,
+        }
+        
+        method = view_methods.get(self._current_view, self._get_shell_info)
+        return method()
+    
+    def _get_shell_info(self) -> str:
+        """셸 정보."""
+        user = getattr(self.app, 'authenticated_user', None) or os.environ.get('USER', 'unknown')
+        
+        try:
+            user_info = pwd.getpwnam(user)
+            home_dir = user_info.pw_dir
+            shell = user_info.pw_shell
+            uid = user_info.pw_uid
+            gid = user_info.pw_gid
+        except Exception:
+            home_dir = os.environ.get('HOME', '/root')
+            shell = os.environ.get('SHELL', '/bin/bash')
+            uid = os.getuid()
+            gid = os.getgid()
+        
+        return f"""[bold cyan]══ Shell Information ══[/]
+
+[yellow]Current User:[/]
+  Username    : {user}
+  UID         : {uid}
+  GID         : {gid}
+  Home        : {home_dir}
+  Shell       : {shell}
+
+[yellow]System Info:[/]
+  Hostname    : {os.uname().nodename}
+  OS          : {os.uname().sysname} {os.uname().release}
+  Architecture: {os.uname().machine}
+
+[yellow]Environment:[/]
+  TERM        : {os.environ.get('TERM', 'unknown')}
+  LANG        : {os.environ.get('LANG', 'unknown')}
+  PATH        : {os.environ.get('PATH', '')[:50]}...
+
+[bright_black]─────────────────────────────────────────────[/]
+Select [cyan]Launch Shell[/] to start interactive shell
+Press [yellow]ESC[/] to return to dashboard
+"""
+    
+    def _get_shell_prompt(self) -> str:
+        """셸 실행 안내."""
+        return """[bold cyan]══ Launch Interactive Shell ══[/]
+
+[yellow]Press Enter to launch bash shell[/]
+
+[white]The shell will:[/]
+  • Open an interactive bash session
+  • Run with your current user privileges
+  • Return to MNX Console when you type 'exit'
+
+[yellow]Tips:[/]
+  • Type 'exit' or press Ctrl+D to return
+  • Use 'sudo' for administrative commands
+  • Shell history will be preserved
+
+[bright_black]─────────────────────────────────────────────[/]
+[bold green]Ready to launch shell...[/]
+Press [yellow]Enter[/] on 'Launch Shell' menu item
+"""
+    
+    def _get_command_history(self) -> str:
+        """명령 히스토리."""
+        try:
+            from datetime import datetime as _dt
+            user = getattr(self.app, 'authenticated_user', None) or os.environ.get('USER', 'root')
+            user_info = pwd.getpwnam(user)
+            history_file = os.path.join(user_info.pw_dir, '.bash_history')
+
+            if os.path.exists(history_file):
+                with open(history_file, 'r', errors='replace') as f:
+                    lines = f.readlines()
+
+                # #<unix_timestamp> 행과 명령어 행을 쌍으로 파싱
+                entries = []   # list of (datetime_str, cmd)
+                pending_ts = ""
+                for line in lines:
+                    line = line.rstrip('\n')
+                    if line.startswith('#'):
+                        try:
+                            ts = int(line[1:])
+                            pending_ts = _dt.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            pending_ts = ""
+                    else:
+                        cmd = line.strip()
+                        if cmd:
+                            entries.append((pending_ts, cmd))
+                            pending_ts = ""
+
+                total = len(entries)
+                recent = entries[-20:] if total > 20 else entries
+
+                content = "[bold cyan]══ Recent Command History ══[/]\n\n"
+                content += "[yellow]Last 20 commands:[/]\n"
+                for i, (ts, cmd) in enumerate(recent, 1):
+                    if ts:
+                        content += f"  {i:3d}. [bright_black]{ts}[/] {cmd[:50]}\n"
+                    else:
+                        content += f"  {i:3d}. {cmd[:65]}\n"
+
+                content += f"\n[bright_black]History file: {history_file}[/]\n"
+                content += f"[bright_black]Total commands: {total}[/]\n"
+                return content
+            else:
+                return """[bold cyan]══ Command History ══[/]
+
+[yellow]No history file found[/]
+
+History file will be created after shell usage.
+"""
+        except Exception as e:
+            return f"""[bold cyan]══ Command History ══[/]
+
+[red]Error reading history: {e}[/]
+"""
+    
+    @on(ListView.Selected)
+    def handle_menu_selection(self, event: ListView.Selected) -> None:
+        """메뉴 선택 처리."""
+        try:
+            item_id = event.item.id
+            
+            if item_id == "menu-back":
+                self.app.pop_screen()
+                return
+            
+            if item_id == "menu-shell":
+                # 셸 실행
+                self._launch_shell()
+                return
+            
+            view_map = {
+                "menu-info": "info",
+                "menu-shell": "shell",
+                "menu-history": "history",
+            }
+            
+            self._current_view = view_map.get(item_id, "info")
+            self._update_menu_selection()
+            self._update_content()
+            
+        except Exception as e:
+            self.log.error(f"Selection error: {e}")
+    
+    @on(ListView.Highlighted)
+    def handle_menu_highlight(self, event: ListView.Highlighted) -> None:
+        """메뉴 하이라이트 처리."""
+        try:
+            menu_list = self.query_one("#menu-list", ListView)
+            
+            view_to_menu = {
+                "info": "menu-info",
+                "shell": "menu-shell",
+                "history": "menu-history",
+            }
+            selected_menu_id = view_to_menu.get(self._current_view, "menu-info")
+            
+            for item in menu_list.children:
+                if isinstance(item, ListItem) and item.id:
+                    label = item.query_one(Label)
+                    text = self._menu_texts.get(item.id, "")
+                    
+                    if item == event.item:
+                        label.update(f"[reverse] ▸ {text} [/]")
+                    elif item.id == selected_menu_id:
+                        label.update(f"[cyan]▸ {text}[/]")
+                    else:
+                        label.update(f"  {text}")
+        except Exception as e:
+            self.log.error(f"Highlight error: {e}")
+    
+    def _update_menu_selection(self) -> None:
+        """선택된 메뉴 항목 표시 업데이트."""
+        try:
+            menu_list = self.query_one("#menu-list", ListView)
+            
+            view_to_menu = {
+                "info": "menu-info",
+                "shell": "menu-shell",
+                "history": "menu-history",
+            }
+            
+            selected_menu_id = view_to_menu.get(self._current_view, "menu-info")
+            
+            for item in menu_list.children:
+                if isinstance(item, ListItem) and item.id:
+                    label = item.query_one(Label)
+                    text = self._menu_texts.get(item.id, "")
+                    
+                    if item.id == selected_menu_id:
+                        label.update(f"[cyan]▸ {text}[/]")
+                    else:
+                        label.update(f"  {text}")
+        except Exception as e:
+            self.log.error(f"Menu selection update error: {e}")
+    
+    def _update_content(self) -> None:
+        """콘텐츠 업데이트."""
+        _titles = {
+            "info":    "Shell Info",
+            "history": "Command History",
+            "shell":   "Launch Shell",
+        }
+        try:
+            self.query_one("#content-title", Static).update(
+                _titles.get(self._current_view, "Shell Info")
+            )
+        except Exception:
+            pass
+        try:
+            content_widget = self.query_one("#shell-content", Static)
+            content_widget.update(self._get_content())
+        except Exception as e:
+            self.log.error(f"Content update error: {e}")
+    
+    def _launch_shell(self) -> None:
+        """대화형 셸 실행."""
+        if self._shell_active:
+            return
+        self._shell_active = True
+        try:
+            user = getattr(self.app, 'authenticated_user', None) or os.environ.get('USER', 'root')
+            uid = os.getuid()
+            
+            # Textual 앱 일시 중지
+            with self.app.suspend():
+                # 터미널 화면 초기화 (실제 출력해야 화면이 지워짐)
+                subprocess.run(['clear'], check=False)
+                
+                # 배너 출력
+                from datetime import datetime
+                now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                # 역할 결정
+                if uid == 0:
+                    role = "Administrator (root)"
+                else:
+                    role = "User"
+                
+                # ASCII 아트 배너
+                print("\033[1;36m")
+                print(r"  ███╗   ███╗███╗   ██╗██╗  ██╗    ███╗   ██╗██████╗ ██████╗ ")
+                print(r"  ████╗ ████║████╗  ██║╚██╗██╔╝    ████╗  ██║██╔══██╗██╔══██╗")
+                print(r"  ██╔████╔██║██╔██╗ ██║ ╚███╔╝     ██╔██╗ ██║██║  ██║██████╔╝")
+                print(r"  ██║╚██╔╝██║██║╚██╗██║ ██╔██╗     ██║╚██╗██║██║  ██║██╔══██╗")
+                print(r"  ██║ ╚═╝ ██║██║ ╚████║██╔╝ ██╗    ██║ ╚████║██████╔╝██║  ██║")
+                print(r"  ╚═╝     ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝    ╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝")
+                print("\033[0m")
+                print("\033[1;33m            SANDS LAB Inc.  NDR SOLUTION SYSTEM \033[0m")
+                print()
+                
+                # 사용자 정보 박스
+                print("\033[1;36m╔══════════════════════════════════════════════════════════╗\033[0m")
+                print("\033[1;36m║\033[0m                                                          \033[1;36m║\033[0m")
+                
+                # 사용자 이름 (중앙 정렬)
+                user_text = f"Logged in as: {user}"
+                user_padding = (58 - len(user_text)) // 2
+                print(f"\033[1;36m║\033[0m{' ' * user_padding}\033[1;32m{user_text}\033[0m{' ' * (58 - user_padding - len(user_text))}\033[1;36m║\033[0m")
+                
+                # 역할 (중앙 정렬)
+                role_text = f"Role: {role}"
+                role_padding = (58 - len(role_text)) // 2
+                print(f"\033[1;36m║\033[0m{' ' * role_padding}\033[1;33m{role_text}\033[0m{' ' * (58 - role_padding - len(role_text))}\033[1;36m║\033[0m")
+                
+                print("\033[1;36m║\033[0m                                                          \033[1;36m║\033[0m")
+                
+                # 시간 정보 (중앙 정렬)
+                time_text = f"Session started: {now}"
+                time_padding = (58 - len(time_text)) // 2
+                print(f"\033[1;36m║\033[0m{' ' * time_padding}\033[1;37m{time_text}\033[0m{' ' * (58 - time_padding - len(time_text))}\033[1;36m║\033[0m")
+                
+                print("\033[1;36m║\033[0m                                                          \033[1;36m║\033[0m")
+                print("\033[1;36m╚══════════════════════════════════════════════════════════╝\033[0m")
+                print()
+                print("\033[1;37mType 'exit' to return to MNX Console\033[0m")
+                print()
+                
+                # 셸 시작 디렉토리를 해당 사용자의 $HOME 으로 변경
+                try:
+                    import pwd as _pwd
+                    home_dir = _pwd.getpwnam(user).pw_dir
+                except Exception:
+                    home_dir = os.environ.get('HOME', '/root')
+                os.chdir(home_dir)
+
+                # 셸 실행
+                # su - user 는 PAM 보안 정책(securetty/pam_wheel)으로 차단되므로
+                # sudo -i -u user 사용 (PAM su 우회, sudo 권한 체계 적용)
+                if os.getuid() == 0 and user != 'root':
+                    ret = subprocess.call(['sudo', '-i', '-u', user])
+                    if ret != 0:
+                        # sudo 도 실패 시 root 셸로 fallback
+                        subprocess.call(['/bin/bash', '--login'])
+                else:
+                    subprocess.call(['/bin/bash', '--login'])
+                
+                # 셸 종료 후 터미널 리셋 (출력 숨김)
+                subprocess.call(['reset'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        except Exception as e:
+            self.log.error(f"Shell launch error: {e}")
+            self._show_error(str(e))
+        finally:
+            self._shell_active = False
+    
+    def _show_error(self, message: str) -> None:
+        """에러 메시지 표시."""
+        try:
+            content_widget = self.query_one("#shell-content", Static)
+            content_widget.update(f"""[bold red]══ Error ══[/]
+
+{message}
+
+[yellow]Press ESC to return[/]
+""")
+        except Exception:
+            pass
+    
+    def action_go_back(self) -> None:
+        """ESC: 세부 뷰 → 메뉴 복귀, 기본 뷰(info) → 이전 화면."""
+        if self._current_view != "info":
+            self._current_view = "info"
+            self._update_menu_selection()
+            self._update_content()
+            try:
+                self.query_one("#menu-list", ListView).focus()
+            except Exception:
+                pass
+        else:
+            self.app.pop_screen()

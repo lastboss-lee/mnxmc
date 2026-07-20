@@ -1,0 +1,125 @@
+/* ═══════════════════════════════════════════
+   MNX Management Console - Global Theme
+   XenServer Style (Black, Cyan, White, Green)
+   ═══════════════════════════════════════════ */
+
+/* === 색상 변수 === */
+$primary: #5fd7d7;
+$bg-black: #0c0c0c;
+$cyan: #00FFFF;
+$white: #FFFFFF;
+$green: #00FF00;
+$red: #FF0000;
+$yellow: #FFFF00;
+
+/* === 전역 설정 === */
+Screen {
+    background: $bg-black;
+    min-width: 100;
+}
+
+/* === 헤더/푸터 === */
+/* Header는 각 화면에서 커스텀 헤더로 대체됨 */
+
+/* Status bar: inverse color (Rule 3) */
+Footer {
+    dock: bottom;
+    height: 1;
+    background: #333333;
+    color: $white;
+}
+
+Footer .footer--key {
+    color: $bg-black;
+    background: #5fd7d7;
+    text-style: bold;
+}
+
+Footer .footer--description {
+    color: $white;
+    background: #333333;
+}
+
+/* === 컨테이너 === */
+Container {
+    background: $bg-black;
+}
+
+ScrollableContainer {
+    scrollbar-color: #5fd7d7;
+}
+
+/* === 입력 필드 === */
+Input {
+    background: $bg-black;
+    border: solid #5fd7d7;
+    color: $white;
+}
+
+Input:focus {
+    border: solid white;
+}
+
+/* === 레이블 === */
+Label {
+    background: $bg-black;
+    color: $white;
+}
+
+/* Static은 전역 스타일 제거 - 각 화면에서 개별 설정 */
+
+/* === 버튼 === */
+Button {
+    height: 3;
+    min-width: 12;
+    background: $bg-black;
+    border: solid $white;
+    color: $white;
+}
+
+Button:focus {
+    background: $cyan;
+    color: $bg-black;
+    border: double #5fd7d7;
+    text-style: bold;
+}
+
+Button:hover {
+    background: $cyan;
+    color: $bg-black;
+    border: solid $cyan;
+}
+
+Button.-primary {
+    border: solid $cyan;
+    color: $cyan;
+}
+
+Button.-primary:hover {
+    background: $cyan;
+    color: $bg-black;
+}
+
+Button.-primary:focus {
+    background: $cyan;
+    color: $bg-black;
+    text-style: bold;
+}
+
+/* === 리스트 === */
+ListView {
+    background: $bg-black;
+    border: none;
+}
+
+ListItem {
+    background: $bg-black;
+    color: $white;
+    height: 1;
+    padding: 0 2;
+}
+
+ListItem:hover {
+    background: $white;
+    color: $bg-black;
+}

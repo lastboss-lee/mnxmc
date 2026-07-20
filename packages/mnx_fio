@@ -1,0 +1,63 @@
+#!/bin/bash
+# =============================================================================
+# mnx_fio — MNXMC Disk Performance Test Wrapper
+#
+# 목적:
+#   sudo 로 호출되는 fio 의 인자를 검증하여 --filename 대상 디바이스 덮어쓰기
+#   및 /data 임의 경로 파괴를 차단한다.
+#
+# 허용 조건:
+#   --directory=<ALLOWED_DIRS 중 하나>
+#   --output=/tmp/mnxmc_perf/<파일>
+#   --filename / --filename_format 옵션 사용 금지
+#
+# sudoers 등록:
+#   sands ALL=(root) NOPASSWD: /usr/local/bin/mnx_fio
+# =============================================================================
+
+set -u
+
+ALLOWED_DIRS=(
+    "/application/.fio_perf_tmp"
+    "/data/.fio_perf_tmp"
+    "/pipeline/.fio_perf_tmp"
+)
+OUTPUT_PREFIX="/tmp/mnxmc_perf/"
+
+dir=""
+out=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --filename=*|--filename_format=*)
+            echo "mnx_fio: --filename 계열 옵션 차단됨: $arg" >&2
+            exit 4
+            ;;
+        --directory=*)
+            dir="${arg#--directory=}"
+            ;;
+        --output=*)
+            out="${arg#--output=}"
+            ;;
+    esac
+done
+
+# --directory 화이트리스트 검증
+ok=0
+for d in "${ALLOWED_DIRS[@]}"; do
+    [ "$dir" = "$d" ] && { ok=1; break; }
+done
+if [ "$ok" -ne 1 ]; then
+    echo "mnx_fio: --directory 허용되지 않은 경로: '$dir'" >&2
+    echo "         허용 목록: ${ALLOWED_DIRS[*]}" >&2
+    exit 2
+fi
+
+# --output 접두 검증
+if [ -z "$out" ] || [ "${out#$OUTPUT_PREFIX}" = "$out" ]; then
+    echo "mnx_fio: --output 은 ${OUTPUT_PREFIX} 이하 경로만 허용: '$out'" >&2
+    exit 3
+fi
+
+# 최종 실행
+exec /usr/bin/fio "$@"

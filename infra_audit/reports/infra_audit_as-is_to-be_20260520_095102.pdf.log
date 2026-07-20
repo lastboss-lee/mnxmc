@@ -1,0 +1,9 @@
+Error producing PDF.
+! LaTeX Error: Environment Shaded undefined.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.94 \renewenvironment{Shaded}
+

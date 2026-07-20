@@ -1,0 +1,53 @@
+# /etc/sudoers.d/mnxmc
+# MNX Management Console — sands 사용자 NOPASSWD 권한 설정
+#
+# 설치 방법:
+#   sudo cp packages/sudoers_mnxmc /etc/sudoers.d/mnxmc
+#   sudo chmod 440 /etc/sudoers.d/mnxmc
+#   sudo visudo -c   # 문법 검증
+#
+# 목적: SSH 접속 시 sands 유저가 MNXMC TUI에서 하드웨어 정보를 조회하고
+#       설정 파일을 쓸 수 있도록 특정 명령어에 한해 패스워드 없이 sudo 허용
+
+Defaults!/usr/sbin/dmidecode             !requiretty
+Defaults!/usr/local/bin/storcli64        !requiretty
+Defaults!/usr/local/bin/perccli64        !requiretty
+Defaults!/opt/MegaRAID/perccli/perccli64 !requiretty
+Defaults!/usr/sbin/smartctl              !requiretty
+Defaults!/usr/sbin/ip                    !requiretty
+Defaults!/usr/sbin/netplan               !requiretty
+Defaults!/usr/bin/systemctl              !requiretty
+Defaults!/usr/sbin/ethtool               !requiretty
+Defaults!/usr/bin/tee                    !requiretty
+Defaults!/usr/bin/rm                     !requiretty
+Defaults!/usr/sbin/ufw                   !requiretty
+Defaults!/usr/bin/fio                    !requiretty
+Defaults!/usr/bin/install                !requiretty
+Defaults!/sbin/reboot                    !requiretty
+Defaults!/sbin/shutdown                  !requiretty
+
+sands ALL=(root) NOPASSWD: /usr/sbin/dmidecode
+sands ALL=(root) NOPASSWD: /usr/local/bin/storcli64
+sands ALL=(root) NOPASSWD: /usr/local/bin/perccli64
+sands ALL=(root) NOPASSWD: /opt/MegaRAID/perccli/perccli64
+sands ALL=(root) NOPASSWD: /usr/sbin/smartctl
+sands ALL=(root) NOPASSWD: /usr/sbin/ip
+sands ALL=(root) NOPASSWD: /usr/sbin/netplan
+sands ALL=(root) NOPASSWD: /usr/bin/systemctl
+sands ALL=(root) NOPASSWD: /usr/sbin/ethtool
+# 설정 파일 쓰기 전용 tee 경로 제한 (임의 경로 쓰기 방지)
+sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/mnx/etc/config.ini
+sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/mnx/etc/mnx_config.json
+sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/mnx/etc/mnxmc_console.json
+sands ALL=(root) NOPASSWD: /usr/sbin/ufw
+# Disk Perf Test: fio 실행, 테스트 디렉토리 생성 및 정리
+sands ALL=(root) NOPASSWD: /usr/bin/fio
+sands ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 /application/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 /data/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 /pipeline/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/rm -rf /application/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/rm -rf /data/.fio_perf_tmp
+sands ALL=(root) NOPASSWD: /usr/bin/rm -rf /pipeline/.fio_perf_tmp
+# System Power Control
+sands ALL=(root) NOPASSWD: /sbin/reboot
+sands ALL=(root) NOPASSWD: /sbin/shutdown -h now
