@@ -13,7 +13,7 @@ Features:
 """
 
 from textual.app import ComposeResult
-from textual.screen import Screen, ModalScreen
+from textual.screen import ModalScreen
 from textual.widgets import (
     Footer, Static, ListView, ListItem,
     Label, Input, Button, Checkbox
@@ -22,7 +22,7 @@ from textual.containers import Container, Vertical, Horizontal, Center
 from textual.binding import Binding
 from textual.reactive import reactive
 from textual import on
-from app.widgets import CustomHeader
+from app.ui.screen import BaseScreen, Sidebar
 from typing import Optional
 import subprocess
 import threading
@@ -646,13 +646,25 @@ class NetworkConfigModal(ModalScreen[dict]):
 # Network Screen
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class NetworkScreen(Screen):
+class NetworkScreen(BaseScreen):
     """
-    네트워크 관리 화면.
+    네트워크 관리 화면 (공통 BaseScreen 골격 사용).
 
-    왼쪽 패널: 인터페이스 목록
-    오른쪽 패널: 선택된 인터페이스 상세 정보
+    사이드바: 인터페이스 목록 (동적)
+    콘텐츠  : 선택된 인터페이스 상세 정보
     """
+
+    SIDEBAR_TITLE = "NETWORK"
+    SIDEBAR_BULLET = False   # 인터페이스 라벨은 2줄 자체 서식
+
+    FOOTER_KEYS = [
+        ("↑↓", "Select"),
+        ("Enter", "Configure IP"),
+        ("U", "Link Up/Down"),
+        ("F8", "Rescan"),
+        ("F10", "Exit"),
+        ("ESC", "Back"),
+    ]
 
     CSS = """
     NetworkScreen {
@@ -790,19 +802,9 @@ class NetworkScreen(Screen):
         else:
             return f"  {name}{mode_tag}\n    [{status_color}]{status}[/] {ip_addr}"
 
-    def compose(self) -> ComposeResult:
-        yield CustomHeader()
-
-        with Container(id="main-container"):
-            with Vertical(id="left-panel"):
-                yield Static("Network Management", id="menu-title")
-                yield ListView(id="interface-list")
-
-            with Vertical(id="right-panel"):
-                yield Static("Network Management", id="content-title")
-                yield Static(self._get_interface_details(), id="interface-details")
-
-        yield Footer()
+    def compose_content(self) -> ComposeResult:
+        yield Static("Network Management", id="content-title")
+        yield Static(self._get_interface_details(), id="interface-details")
 
     def on_mount(self) -> None:
         self.log.info("NetworkScreen mounted")
@@ -810,158 +812,93 @@ class NetworkScreen(Screen):
         self._refresh_handle = self.set_interval(2.0, self._update_stats)
 
     def on_unmount(self) -> None:
-        if hasattr(self, '_refresh_handle') and self._refresh_handle:
+        if getattr(self, "_refresh_handle", None):
             self._refresh_handle.stop()
 
-    def _load_interfaces(self) -> None:
-        """네트워크 인터페이스 목록을 로드합니다."""
+    def _filtered_interfaces(self) -> list:
+        """표시 대상 인터페이스(가상 인터페이스 제외)."""
+        skip_prefixes = ('docker', 'veth', 'br-', 'virbr', 'vnet')
+        return [i for i in self._interfaces if not i.name.startswith(skip_prefixes)]
+
+    def _build_sidebar_items(self) -> list:
+        """현재 인터페이스 목록으로 사이드바 항목 리스트를 만든다."""
+        items = [("back", "← Back"), ("sep-0", "─" * 28, "separator")]
+        filtered = self._filtered_interfaces()
+        if filtered:
+            names = [i.name for i in filtered]
+            if self.selected_interface not in names:
+                self.selected_interface = filtered[0].name
+            for iface in filtered:
+                items.append((f"iface-{iface.name}",
+                              self._build_iface_label(iface, "normal")))
+        else:
+            items.append(("noiface", "[bright_black]  No interfaces found[/]", "separator"))
+        return items
+
+    def _rebuild_menu(self) -> None:
+        """사이드바를 현재 인터페이스 목록으로 다시 구성한다."""
+        sidebar = self.query_one(Sidebar)
+        sidebar.set_items(self._build_sidebar_items(),
+                          on_complete=self._after_menu_rebuilt)
+
+    def _after_menu_rebuilt(self) -> None:
+        """사이드바 재구성 완료 후 포커스/스타일 적용."""
         try:
-            interface_list = self.query_one("#interface-list", ListView)
+            self.query_one("Sidebar ListView", ListView).focus()
+        except Exception:
+            pass
+        self._update_menu_styles()
 
-            # 기존 항목들 완전히 제거
-            while interface_list.children:
-                interface_list.children[0].remove()
-
-            self._menu_texts = {}
-
+    def _load_interfaces(self) -> None:
+        """네트워크 인터페이스를 새로 발견하고 사이드바를 구성한다."""
+        try:
             if self.app.network_mgmt:
                 self.app.network_mgmt.discover_interfaces()
                 self._interfaces = self.app.network_mgmt.interfaces
             else:
                 self._interfaces = []
-
-            # Back 항목
-            back_item = ListItem(Label("  ← Back"), classes="menu-back")
-            self._menu_texts["menu-back"] = "← Back"
-            interface_list.append(back_item)
-
-            # 구분선
-            sep_item = ListItem(Label("[cyan]─" * 28 + "[/]"))
-            sep_item.disabled = True
-            interface_list.append(sep_item)
-
-            # 인터페이스 항목들
-            if self._interfaces:
-                prev_selected = self.selected_interface
-                found_prev = False
-
-                skip_prefixes = ('docker', 'veth', 'br-', 'virbr', 'vnet')
-                filtered_interfaces = [
-                    iface for iface in self._interfaces
-                    if not iface.name.startswith(skip_prefixes)
-                ]
-
-                for iface in filtered_interfaces:
-                    label_text = self._build_iface_label(iface, "normal")
-                    item = ListItem(Label(label_text), classes=f"iface-{iface.name}")
-                    self._menu_texts[f"iface-{iface.name}"] = iface.name
-                    interface_list.append(item)
-
-                    if iface.name == prev_selected:
-                        found_prev = True
-
-                if filtered_interfaces:
-                    if not found_prev:
-                        self.selected_interface = filtered_interfaces[0].name
-            else:
-                no_iface = ListItem(Label("[bright_black]  No interfaces found[/]"))
-                no_iface.disabled = True
-                interface_list.append(no_iface)
-
-            interface_list.focus()
-            self._update_menu_styles()
-
+            self._rebuild_menu()
         except Exception as e:
             self.log.error(f"Failed to load interfaces: {e}")
             import traceback
             self.log.error(traceback.format_exc())
             self.app.notify(f"Error: {e}", severity="error")
 
-    @on(ListView.Selected)
-    def on_interface_selected(self, event: ListView.Selected) -> None:
-        if event.item.has_class("menu-back"):
+    def on_nav_selected(self, key: str) -> None:
+        if key == "back":
             self.app.pop_screen()
             return
+        if key.startswith("iface-"):
+            self.selected_interface = key[len("iface-"):]
+            self._update_menu_styles()
+            self.action_configure()  # 단일 Enter로 바로 모달 열기
 
-        for cls in event.item.classes:
-            if cls.startswith("iface-"):
-                interface_name = cls.replace("iface-", "")
-                self.selected_interface = interface_name
-                self._update_menu_styles()
-                self.action_configure()  # 단일 Enter로 바로 모달 열기
-                return
+    def on_nav_highlighted(self, key: str) -> None:
+        if not key:
+            return
+        sidebar = self.query_one(Sidebar)
 
-    @on(ListView.Highlighted)
-    def handle_menu_highlight(self, event: ListView.Highlighted) -> None:
-        try:
-            interface_list = self.query_one("#interface-list", ListView)
+        # Back 항목
+        sidebar.update_item_label(
+            "back", "[reverse] ▸ ← Back [/]" if key == "back" else "  ← Back")
 
-            for item in interface_list.children:
-                if isinstance(item, ListItem):
-                    if item.disabled:
-                        continue
+        # 인터페이스 항목 (커서=highlighted, 선택=selected, 그 외=normal)
+        for iface in self._filtered_interfaces():
+            k = f"iface-{iface.name}"
+            if k == key:
+                state = "highlighted"
+            elif iface.name == self.selected_interface:
+                state = "selected"
+            else:
+                state = "normal"
+            sidebar.update_item_label(k, self._build_iface_label(iface, state))
 
-                    menu_key = None
-                    is_back = item.has_class("menu-back")
-
-                    if is_back:
-                        menu_key = "menu-back"
-                    else:
-                        for cls in item.classes:
-                            if cls.startswith("iface-"):
-                                menu_key = cls
-                                break
-
-                    if not menu_key:
-                        continue
-
-                    label = item.query_one(Label)
-                    text = self._menu_texts.get(menu_key, "")
-
-                    if not text:
-                        continue
-
-                    if item == event.item:
-                        if is_back:
-                            label.update(f"[reverse] ▸ {text} [/]")
-                        else:
-                            iface = self._get_interface_by_class(menu_key)
-                            if iface:
-                                label.update(self._build_iface_label(iface, "highlighted"))
-                            else:
-                                label.update(f"[reverse] ▸ {text} [/]")
-                    elif self._is_selected_interface_class(menu_key):
-                        if is_back:
-                            label.update(f"[cyan]▸ {text}[/]")
-                        else:
-                            iface = self._get_interface_by_class(menu_key)
-                            if iface:
-                                label.update(self._build_iface_label(iface, "selected"))
-                            else:
-                                label.update(f"[cyan]▸ {text}[/]")
-                    else:
-                        if is_back:
-                            label.update(f"  {text}")
-                        else:
-                            iface = self._get_interface_by_class(menu_key)
-                            if iface:
-                                label.update(self._build_iface_label(iface, "normal"))
-                            else:
-                                label.update(f"  {text}")
-
-            # 현재 하이라이트된 인터페이스 추적 + 우측 패널 즉시 미리보기
-            hovered_name = ""
-            if event.item:
-                for cls in event.item.classes:
-                    if cls.startswith("iface-"):
-                        hovered_name = cls.replace("iface-", "")
-                        break
-            self._hovered_interface = hovered_name
-            if hovered_name:
-                self._update_details_for(hovered_name)
-
-        except Exception as e:
-            self.log.error(f"Highlight error: {e}")
+        # 우측 패널 즉시 미리보기
+        if key.startswith("iface-"):
+            self._hovered_interface = key[len("iface-"):]
+            self._update_details_for(self._hovered_interface)
+        else:
+            self._hovered_interface = ""
 
     def _get_interface_by_class(self, class_name: str):
         """클래스명으로 인터페이스 찾기."""
@@ -990,50 +927,14 @@ class NetworkScreen(Screen):
 
     def _update_menu_styles(self) -> None:
         try:
-            interface_list = self.query_one("#interface-list", ListView)
-
-            for item in interface_list.children:
-                if isinstance(item, ListItem):
-                    if item.disabled:
-                        continue
-
-                    menu_key = None
-                    is_back = item.has_class("menu-back")
-
-                    if is_back:
-                        menu_key = "menu-back"
-                    else:
-                        for cls in item.classes:
-                            if cls.startswith("iface-"):
-                                menu_key = cls
-                                break
-
-                    if not menu_key:
-                        continue
-
-                    label = item.query_one(Label)
-                    text = self._menu_texts.get(menu_key, "")
-
-                    if not text:
-                        continue
-
-                    if self._is_selected_interface_class(menu_key):
-                        iface = self._get_interface_by_class(menu_key)
-                        if iface:
-                            label.update(self._build_iface_label(iface, "selected"))
-                        else:
-                            label.update(f"[cyan]▸ {text}[/]")
-                    else:
-                        if is_back:
-                            label.update(f"  {text}")
-                        else:
-                            iface = self._get_interface_by_class(menu_key)
-                            if iface:
-                                label.update(self._build_iface_label(iface, "normal"))
-                            else:
-                                label.update(f"  {text}")
-        except Exception as e:
-            self.log.error(f"Menu style update error: {e}")
+            sidebar = self.query_one(Sidebar)
+        except Exception:
+            return
+        sidebar.update_item_label("back", "  ← Back")
+        for iface in self._filtered_interfaces():
+            state = "selected" if iface.name == self.selected_interface else "normal"
+            sidebar.update_item_label(f"iface-{iface.name}",
+                                      self._build_iface_label(iface, state))
 
     def _get_interface_details(self) -> str:
         """인터페이스 상세 정보를 가져옵니다."""
@@ -1283,7 +1184,7 @@ Press Enter to configure[/]
     def action_go_back(self) -> None:
         """ESC: 우측 패널 포커스 → 메뉴 복귀, 메뉴 포커스 → 이전 화면."""
         try:
-            iface_list = self.query_one("#interface-list", ListView)
+            iface_list = self.query_one("Sidebar ListView", ListView)
             if iface_list.has_focus:
                 self.app.pop_screen()
             else:
@@ -1643,50 +1544,6 @@ Press Enter to configure[/]
         try:
             if self.app.network_mgmt:
                 self._interfaces = self.app.network_mgmt.interfaces
-
-            interface_list = self.query_one("#interface-list", ListView)
-
-            while interface_list.children:
-                interface_list.children[0].remove()
-
-            self._menu_texts = {}
-
-            back_item = ListItem(Label("  ← Back"), classes="menu-back")
-            self._menu_texts["menu-back"] = "← Back"
-            interface_list.append(back_item)
-
-            sep_item = ListItem(Label("[cyan]─" * 28 + "[/]"))
-            sep_item.disabled = True
-            interface_list.append(sep_item)
-
-            if self._interfaces:
-                prev_selected = self.selected_interface
-                found_prev = False
-
-                skip_prefixes = ('docker', 'veth', 'br-', 'virbr', 'vnet')
-                filtered_interfaces = [
-                    iface for iface in self._interfaces
-                    if not iface.name.startswith(skip_prefixes)
-                ]
-
-                for iface in filtered_interfaces:
-                    label_text = self._build_iface_label(iface, "normal")
-                    item = ListItem(Label(label_text), classes=f"iface-{iface.name}")
-                    self._menu_texts[f"iface-{iface.name}"] = iface.name
-                    interface_list.append(item)
-
-                    if iface.name == prev_selected:
-                        found_prev = True
-
-                if filtered_interfaces and not found_prev:
-                    self.selected_interface = filtered_interfaces[0].name
-            else:
-                no_iface = ListItem(Label("[bright_black]  No interfaces found[/]"))
-                no_iface.disabled = True
-                interface_list.append(no_iface)
-
-            interface_list.focus()
-            self._update_menu_styles()
-
+            self._rebuild_menu()
         except Exception as e:
             self.log.error(f"Menu refresh failed: {e}")

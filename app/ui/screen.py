@@ -190,13 +190,24 @@ class Sidebar(Vertical):
         item.id = f"nav-{key}"
         return item
 
-    def set_items(self, items: Iterable[tuple]) -> None:
-        """항목 목록을 동적으로 교체한다 (런타임에 채워지는 메뉴용)."""
+    def set_items(self, items: Iterable[tuple], on_complete=None) -> None:
+        """항목 목록을 동적으로 교체한다 (런타임에 채워지는 메뉴용).
+
+        위젯 제거는 비동기이므로, 기존 항목 제거(clear)가 끝난 뒤에
+        새 항목을 추가해야 동일 id 중복(DuplicateIds)을 피할 수 있다.
+        완료 후 on_complete 콜백을 호출한다(포커스/스타일 갱신 등).
+        """
         self._items = list(items)
-        lv = self.query_one(ListView)
-        lv.clear()
-        for entry in self._items:
-            lv.append(self._make_item(entry))
+
+        async def _rebuild() -> None:
+            lv = self.query_one(ListView)
+            await lv.clear()
+            for entry in self._items:
+                lv.append(self._make_item(entry))
+            if on_complete is not None:
+                on_complete()
+
+        self.app.call_later(_rebuild)
 
     def update_item_label(self, key: str, markup: str) -> None:
         """특정 항목의 라벨만 제자리 갱신한다 (라이브 상태 아이콘 등)."""
