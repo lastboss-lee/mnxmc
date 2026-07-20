@@ -38,61 +38,6 @@ class SystemScreen(BaseScreen):
         background: #0c0c0c;
     }
 
-    #main-container {
-        width: 100%;
-        height: 1fr;
-        layout: horizontal;
-        background: #0c0c0c;
-    }
-
-    #left-panel {
-        width: 25%;
-        height: 100%;
-        background: #0c0c0c;
-        border-right: solid #5fd7d7;
-    }
-
-    #menu-title {
-        width: 100%;
-        height: 1;
-        background: #333333;
-        color: white;
-        text-style: bold;
-        padding: 0 2;
-    }
-    
-    #menu-list {
-        width: 100%;
-        height: 1fr;
-        background: #0c0c0c;
-        border: none;
-        padding: 1 0;
-    }
-
-    #menu-list > ListItem {
-        background: #0c0c0c;
-        color: white;
-        height: 1;
-        padding: 0 2;
-    }
-
-    #menu-list > ListItem:hover {
-        background: #5fd7d7;
-        color: black;
-    }
-
-    #menu-list:focus > ListItem.--highlight {
-        background: #5fd7d7;
-        color: black;
-        text-style: bold;
-    }
-
-    #right-panel {
-        width: 1fr;
-        height: 100%;
-        background: #0c0c0c;
-    }
-
     #content-title {
         width: 100%;
         height: 1;
@@ -108,8 +53,6 @@ class SystemScreen(BaseScreen):
         background: #0c0c0c;
         padding: 1 2;
     }
-
-
 
     #system-info {
         width: 100%;

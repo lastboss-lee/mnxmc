@@ -671,60 +671,6 @@ class NetworkScreen(BaseScreen):
         background: #0c0c0c;
     }
 
-    #main-container {
-        width: 100%;
-        height: 1fr;
-        layout: horizontal;
-        background: #0c0c0c;
-    }
-
-    #left-panel {
-        width: 25%;
-        height: 100%;
-        background: #0c0c0c;
-        border-right: solid #5fd7d7;
-    }
-
-    #menu-title {
-        width: 100%;
-        height: 1;
-        background: #333333;
-        color: white;
-        text-style: bold;
-        padding: 0 2;
-    }
-
-    #interface-list {
-        width: 100%;
-        height: 1fr;
-        background: #0c0c0c;
-        border: none;
-        padding: 1 0;
-    }
-
-    #interface-list > ListItem {
-        background: #0c0c0c;
-        color: white;
-        height: 2;
-        padding: 0 2;
-    }
-
-    #interface-list > ListItem:hover {
-        background: #1a1a1a;
-    }
-
-    #interface-list > ListItem.-selected {
-        background: #222222;
-        color: white;
-    }
-
-    #right-panel {
-        width: 1fr;
-        height: 100%;
-        background: #0c0c0c;
-        padding: 0;
-    }
-
     #content-title {
         width: 100%;
         height: 1;

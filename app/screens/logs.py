@@ -44,65 +44,6 @@ class LogsScreen(BaseScreen):
         background: #0c0c0c;
     }
 
-    #main-container {
-        width: 100%;
-        height: 100%;
-        layout: horizontal;
-        background: #0c0c0c;
-    }
-
-    #left-panel {
-        width: 25%;
-        height: 100%;
-        background: #0c0c0c;
-        border-right: solid #5fd7d7;
-    }
-
-    #menu-title {
-        width: 100%;
-        height: 1;
-        background: #333333;
-        color: white;
-        text-style: bold;
-        padding: 0 2;
-    }
-
-    #log-menu {
-        width: 100%;
-        height: 1fr;
-        background: #0c0c0c;
-        border: none;
-        padding: 1 0;
-    }
-
-    #log-menu > ListItem {
-        background: #0c0c0c;
-        color: white;
-        height: 1;
-        padding: 0 2;
-    }
-    
-    #log-menu > ListItem:hover {
-        background: #5fd7d7;
-        color: black;
-    }
-    
-    #log-menu > ListItem.-section {
-        color: #5fd7d7;
-        text-style: bold;
-    }
-
-    #log-menu > ListItem.-separator {
-        color: #5fd7d7;
-    }
-    
-    #right-panel {
-        width: 1fr;
-        height: 100%;
-        background: #0c0c0c;
-        padding: 0;
-    }
-
     #content-title {
         width: 100%;
         height: 1;
