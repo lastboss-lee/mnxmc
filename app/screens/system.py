@@ -20,6 +20,7 @@ import re as _re
 
 # graidctl 등 외부 CLI 출력에 들어있는 ANSI 색상 escape를 제거하기 위한 패턴.
 _ANSI_RE = _re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+from app.ui import tokens
 from app.ui.screen import BaseScreen
 from app.ui.widgets import SectionTitle
 
@@ -283,35 +284,36 @@ class SystemScreen(BaseScreen):
             mem_usage = self._get_mem_usage()
             
             mem_bar = self._format_bar(mem_usage.get('usage_percent', 0))
-            
-            content = f"""[bold cyan]═══ System Overview ═══[/]
+            disk_usage = self.app.system_info.get_disk_usage() if self.app.system_info else 'N/A'
 
-[yellow]System:[/]
-  Product  : {system.get('product_name', 'Unknown')}
-  Hostname : {info.get('hostname', 'Unknown')}
-  OS       : {system.get('os_version', 'Unknown')}
-  Kernel   : {system.get('kernel', 'Unknown')}
-  Uptime   : {info.get('uptime', 'Unknown')}
-
-[yellow]CPU:[/]
-  Model    : {self._truncate(cpu.get('model', 'Unknown'), 45)}
-  Cores    : {cpu.get('cores', 0)} / {cpu.get('threads', 0)} threads
-  Arch     : {cpu.get('architecture', 'Unknown')}
-
-[yellow]Memory:[/]
-  Total    : {memory.get('total_gb', 0):.1f} GB
-  Used     : {mem_usage.get('used_gb', 0):.1f} GB
-  Usage    : {mem_bar}
-
-[yellow]Storage:[/]
-  Type     : {disk.get('filesystem', 'Unknown')}
-  Usage    : {self.app.system_info.get_disk_usage() if self.app.system_info else 'N/A'}
-
-[yellow]Load:[/]
-  1/5/15   : {load.get('1min', 0):.2f}, {load.get('5min', 0):.2f}, {load.get('15min', 0):.2f}
-
-[yellow]Network:[/] {len(network)} interface(s) detected
-"""
+            content = "[bold cyan]═══ System Overview ═══[/]\n\n"
+            content += tokens.panel("System", (
+                f"Product  : {system.get('product_name', 'Unknown')}\n"
+                f"Hostname : {info.get('hostname', 'Unknown')}\n"
+                f"OS       : {system.get('os_version', 'Unknown')}\n"
+                f"Kernel   : {system.get('kernel', 'Unknown')}\n"
+                f"Uptime   : {info.get('uptime', 'Unknown')}"
+            )) + "\n\n"
+            content += tokens.panel("CPU", (
+                f"Model    : {self._truncate(cpu.get('model', 'Unknown'), 45)}\n"
+                f"Cores    : {cpu.get('cores', 0)} / {cpu.get('threads', 0)} threads\n"
+                f"Arch     : {cpu.get('architecture', 'Unknown')}"
+            )) + "\n\n"
+            content += tokens.panel("Memory", (
+                f"Total    : {memory.get('total_gb', 0):.1f} GB\n"
+                f"Used     : {mem_usage.get('used_gb', 0):.1f} GB\n"
+                f"Usage    : {mem_bar}"
+            )) + "\n\n"
+            content += tokens.panel("Storage", (
+                f"Type     : {disk.get('filesystem', 'Unknown')}\n"
+                f"Usage    : {disk_usage}"
+            )) + "\n\n"
+            content += tokens.panel("Load", (
+                f"1/5/15   : {load.get('1min', 0):.2f}, "
+                f"{load.get('5min', 0):.2f}, {load.get('15min', 0):.2f}"
+            )) + "\n\n"
+            content += tokens.panel("Network",
+                f"{len(network)} interface(s) detected") + "\n"
             content += self._get_footer()
             return content
         except Exception as e:
