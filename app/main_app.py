@@ -48,8 +48,8 @@ class MNXApp(App):
         >>> app.run()
     """
     
-    # CSS 파일 경로
-    CSS_PATH = "styles/theme.tcss"
+    # CSS 파일 경로 (디자인 시스템 theme 을 뒤에 로드하여 공통 Shell/컴포넌트 스타일 제공)
+    CSS_PATH = ["styles/theme.tcss", "ui/theme.tcss"]
     
     # 애플리케이션 제목
     TITLE = "MNX Appliance Management Console"

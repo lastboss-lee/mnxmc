@@ -1,103 +1,33 @@
 """
 Dashboard Screen
+
+메인 대시보드. 좌측 사이드바(메뉴) + 우측 실시간 시스템 상태.
+공통 디자인 시스템(app.ui.BaseScreen)의 4구획 골격을 사용한다.
+기능(7개 화면 네비게이션 / 1초 실시간 상태 / F5·F7·F8)은 기존과 동일하다.
 """
 
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Footer, Static, ListView, ListItem, Label, Input
-from textual.containers import Container, Vertical, Horizontal
+from textual.widgets import Footer, Static, ListView, Input
+from textual.containers import Container, Vertical
 from textual.binding import Binding
 from textual import on
 
 from app.widgets import CustomHeader
+from app.ui import tokens
+from app.ui.screen import BaseScreen
+from app.ui.widgets import SectionTitle
 
 
-class DashboardScreen(Screen):
+class DashboardScreen(BaseScreen):
     """
     메인 대시보드 화면.
 
     Features:
-    - 좌측 메뉴 패널 (25%)
+    - 좌측 사이드바 메뉴 (공통 Sidebar)
     - 우측 시스템 상태 패널
     - 실시간 상태 업데이트 (1초)
     - 키보드 네비게이션
-    """
-
-    CSS = """
-    DashboardScreen {
-        background: #0c0c0c;
-    }
-
-    #main-container {
-        width: 100%;
-        height: 1fr;
-        background: #0c0c0c;
-    }
-
-    #left-panel {
-        width: 25%;
-        height: 100%;
-        background: #0c0c0c;
-        border-right: solid #5fd7d7;
-    }
-
-    #menu-title {
-        width: 100%;
-        height: 1;
-        background: #333333;
-        color: white;
-        text-style: bold;
-        padding: 0 2;
-    }
-
-    #menu-list {
-        width: 100%;
-        height: auto;
-        background: #0c0c0c;
-        border: none;
-        padding: 1 0;
-    }
-
-    #menu-list > ListItem {
-        background: #0c0c0c;
-        color: white;
-        height: 1;
-        padding: 0 2;
-    }
-
-    #menu-list > ListItem:hover {
-        background: #5fd7d7;
-        color: black;
-    }
-
-    #menu-list:focus > ListItem.--highlight {
-        background: #5fd7d7;
-        color: black;
-        text-style: bold;
-    }
-
-    #right-panel {
-        width: 1fr;
-        height: 100%;
-        background: #0c0c0c;
-    }
-
-    #content-title {
-        width: 100%;
-        height: 1;
-        background: #333333;
-        color: white;
-        text-style: bold;
-        padding: 0 2;
-    }
-
-    #system-status {
-        width: 100%;
-        height: 1fr;
-        color: white;
-        background: #0c0c0c;
-        padding: 1 2;
-    }
     """
 
     BINDINGS = [
@@ -107,64 +37,65 @@ class DashboardScreen(Screen):
         Binding("escape", "back", "Back"),
     ]
 
-    MAIN_MENU = [
-        "System Overview",
-        "Performance Monitor",
-        "Log Monitoring",
-        "Service Status",
-        "Network Management",
-        "MNX Config",
-        "Command Shell",
+    SIDEBAR_TITLE = "MAIN MENU"
+
+    # (nav_id, 표시 라벨) — nav_id 는 _navigate_to 매핑 키
+    SIDEBAR_ITEMS = [
+        ("system",      "System Overview"),
+        ("performance", "Performance Monitor"),
+        ("logs",        "Log Monitoring"),
+        ("service",     "Service Status"),
+        ("network",     "Network Management"),
+        ("config",      "MNX Config"),
+        ("shell",       "Command Shell"),
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._menu_texts = {}
+    FOOTER_KEYS = [
+        ("↑↓", "Select"),
+        ("Enter", "Open"),
+        ("F5", "Refresh"),
+        ("F7", "Rescan"),
+        ("F8", "Network"),
+        ("F10", "Exit"),
+    ]
 
-    def compose(self) -> ComposeResult:
-        """UI 구성."""
-        yield CustomHeader()
+    # nav_id → (모듈경로, 클래스명) ; config 는 특수 처리
+    _NAV_MAP = {
+        "system":      ("app.screens.system",      "SystemScreen"),
+        "performance": ("app.screens.performance", "PerformanceScreen"),
+        "logs":        ("app.screens.logs",        "LogsScreen"),
+        "service":     ("app.screens.service",     "ServiceScreen"),
+        "network":     ("app.screens.network",     "NetworkScreen"),
+        "shell":       ("app.screens.shell",       "ShellScreen"),
+    }
 
-        with Horizontal(id="main-container"):
-            with Vertical(id="left-panel"):
-                yield Static(" Main Menu ", id="menu-title")
-                yield ListView(id="menu-list")
-
-            with Vertical(id="right-panel"):
-                yield Static("System Status", id="content-title")
-                yield Static("Loading...", id="system-status")
-
-        yield Footer()
+    def compose_content(self) -> ComposeResult:
+        yield SectionTitle("System Status")
+        yield Static("Loading...", id="system-status")
 
     def on_mount(self) -> None:
         self.log.info("DashboardScreen mounted")
-
-        try:
-            menu_list = self.query_one("#menu-list", ListView)
-            for idx, item_text in enumerate(self.MAIN_MENU):
-                menu_id = f"menu-{idx}"
-                item = ListItem(Label(f"  {item_text}"), id=menu_id)
-                self._menu_texts[menu_id] = item_text
-                menu_list.append(item)
-        except Exception as e:
-            self.log.error(f"Menu setup failed: {e}")
-
+        # 사이드바 리스트에 포커스 (화살표 키 네비게이션)
         self.set_timer(0.1, self._focus_menu)
         self._update_status()
         self._update_handle = self.set_interval(1.0, self._update_status)
 
     def on_unmount(self) -> None:
-        if hasattr(self, '_update_handle') and self._update_handle:
+        if getattr(self, "_update_handle", None):
             self._update_handle.stop()
 
     def _focus_menu(self) -> None:
         try:
-            menu_list = self.query_one("#menu-list", ListView)
+            menu_list = self.query_one("Sidebar ListView", ListView)
             menu_list.focus()
             if menu_list.children:
                 menu_list.index = 0
         except Exception as e:
             self.log.error(f"Menu focus failed: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 실시간 상태 패널
+    # ═══════════════════════════════════════════════════════════════════════════
 
     def _update_status(self) -> None:
         try:
@@ -174,8 +105,8 @@ class DashboardScreen(Screen):
 
     def _get_system_status(self) -> str:
         try:
-            user = getattr(self.app, 'authenticated_user', None) or "unknown"
-            system_info = getattr(self.app, 'system_info', None)
+            user = getattr(self.app, "authenticated_user", None) or "unknown"
+            system_info = getattr(self.app, "system_info", None)
 
             if not system_info:
                 return f"""[bold cyan]═══ System Status ═══[/]
@@ -192,8 +123,8 @@ class DashboardScreen(Screen):
 """
 
             info = system_info.get_basic_info()
-            mem_usage = info.get('memory_usage', 0)
-            mem_bar = self._create_bar(mem_usage)
+            mem_usage = info.get("memory_usage", 0)
+            mem_bar = tokens.meter(mem_usage, width=20)
 
             return f"""[bold cyan]═══ System Status ═══[/]
 
@@ -218,83 +149,6 @@ class DashboardScreen(Screen):
             self.log.error(f"Status error: {e}")
             return f"[red]Error: {str(e)}[/]"
 
-    def _create_bar(self, percentage: float, length: int = 20) -> str:
-        filled = max(0, min(length, int((percentage / 100) * length)))
-        bar = "▓" * filled + "░" * (length - filled)
-        if percentage >= 90:
-            return f"[red]{bar}[/]"
-        elif percentage >= 75:
-            return f"[yellow]{bar}[/]"
-        else:
-            return f"[green]{bar}[/]"
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # 메뉴 이벤트 핸들러
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    @on(ListView.Selected)
-    def handle_menu_selection(self, event: ListView.Selected) -> None:
-        try:
-            selected = self._menu_texts.get(event.item.id, "")
-            self.log.info(f"Menu selected: '{selected}'")
-            self._navigate_to(selected)
-        except Exception as e:
-            self.log.error(f"Selection error: {e}")
-
-    @on(ListView.Highlighted)
-    def handle_menu_highlight(self, event: ListView.Highlighted) -> None:
-        try:
-            menu_list = self.query_one("#menu-list", ListView)
-            for item in menu_list.children:
-                if isinstance(item, ListItem) and item.id:
-                    label = item.query_one(Label)
-                    text = self._menu_texts.get(item.id, "")
-                    if item == event.item:
-                        label.update(f"[reverse] ▸ {text} [/]")
-                    else:
-                        label.update(f"  {text}")
-        except Exception as e:
-            self.log.error(f"Highlight error: {e}")
-
-    def _navigate_to(self, screen_name: str) -> None:
-        try:
-            if screen_name == "System Overview":
-                from app.screens.system import SystemScreen
-                self.app.push_screen(SystemScreen())
-
-            elif screen_name == "Performance Monitor":
-                from app.screens.performance import PerformanceScreen
-                self.app.push_screen(PerformanceScreen())
-
-            elif screen_name == "Log Monitoring":
-                from app.screens.logs import LogsScreen
-                self.app.push_screen(LogsScreen())
-
-            elif screen_name == "Service Status":
-                from app.screens.service import ServiceScreen
-                self.app.push_screen(ServiceScreen())
-
-            elif screen_name == "Network Management":
-                from app.screens.network import NetworkScreen
-                self.app.push_screen(NetworkScreen())
-
-            elif screen_name == "MNX Config":
-                self.app.push_screen(MnxConfigAuthScreen())
-
-            elif screen_name == "Command Shell":
-                from app.screens.shell import ShellScreen
-                self.app.push_screen(ShellScreen())
-
-            else:
-                self.log.warning(f"Unknown screen: {screen_name}")
-
-        except ImportError as e:
-            self.log.error(f"Import error: {e}")
-            self._show_error(f"Failed to load screen: {screen_name}")
-        except Exception as e:
-            self.log.error(f"Navigation error: {e}")
-            self._show_error(str(e))
-
     def _show_error(self, message: str) -> None:
         try:
             self.query_one("#system-status", Static).update(f"""[bold red]═══ Error ═══[/]
@@ -307,6 +161,37 @@ class DashboardScreen(Screen):
             pass
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # 사이드바 네비게이션
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def on_nav_selected(self, item_id: str) -> None:
+        self.log.info(f"Menu selected: '{item_id}'")
+        self._navigate_to(item_id)
+
+    def _navigate_to(self, nav_id: str) -> None:
+        try:
+            if nav_id == "config":
+                self.app.push_screen(MnxConfigAuthScreen())
+                return
+
+            target = self._NAV_MAP.get(nav_id)
+            if not target:
+                self.log.warning(f"Unknown screen: {nav_id}")
+                return
+
+            module_path, class_name = target
+            module = __import__(module_path, fromlist=[class_name])
+            screen_cls = getattr(module, class_name)
+            self.app.push_screen(screen_cls())
+
+        except ImportError as e:
+            self.log.error(f"Import error: {e}")
+            self._show_error(f"Failed to load screen: {nav_id}")
+        except Exception as e:
+            self.log.error(f"Navigation error: {e}")
+            self._show_error(str(e))
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # 액션 핸들러
     # ═══════════════════════════════════════════════════════════════════════════
 
@@ -315,7 +200,7 @@ class DashboardScreen(Screen):
 
     def action_rescan_system(self) -> None:
         try:
-            system_info = getattr(self.app, 'system_info', None)
+            system_info = getattr(self.app, "system_info", None)
             if system_info:
                 system_info.rescan_system()
             self._update_status()
@@ -327,7 +212,7 @@ class DashboardScreen(Screen):
 
     def action_rescan_network(self) -> None:
         try:
-            network_mgmt = getattr(self.app, 'network_mgmt', None)
+            network_mgmt = getattr(self.app, "network_mgmt", None)
             if network_mgmt:
                 network_mgmt.discover_interfaces()
             self._update_status()
