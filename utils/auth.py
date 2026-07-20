@@ -308,7 +308,9 @@ class AuthenticationManager:
             auth_method = "shadow"
         
         # 방법 2: PAM 인증 (fallback)
-        if not auth_success:
+        # ★ 보안: root로 실행 중이면 `su`가 패스워드 검증 없이 통과하여
+        #    인증 우회가 발생한다. TUI는 root로 구동되므로 non-root일 때만 허용한다.
+        if not auth_success and os.geteuid() != 0:
             auth_success = self._verify_with_pam(username, password)
             auth_method = "pam"
         
