@@ -1,0 +1,25 @@
+# ── Python ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# ── Runtime / logs / temp ───────────────────────────────────────────────
+*.log
+*.swp
+*.swo
+*.tmp
+*.bak
+*~
+.claude/settings.local.json*
+
+# ── Build output (deb 는 /data 로 출력) ─────────────────────────────────
+*.deb.build/
+
+# 주의: infra_audit/ 하위의 기존 커밋된 리포트/로그는 계속 추적됨
+#       (.gitignore 는 이미 추적 중인 파일에는 영향 없음)
