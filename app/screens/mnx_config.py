@@ -270,6 +270,17 @@ SECTION_TITLES = {
 
 NON_SELECTABLE = {"hdr", "hdr2", "hdr3", "hdr4", "hdr5", "hdr6", "hdr7", "sep1", "sep2", "sep3", "sep4", "sep5", "sep6"}
 
+# 섹션별 한 줄 설명 (설정 페이지 느낌 — Option/Description 명확화)
+SECTION_DESC = {
+    "global_es": "Elasticsearch 접속 주소·TLS·인증 정보. (mnx_config.json)",
+    "base_path": "MNX 데이터/로그 기본 경로. (mnx_config.json)",
+    "mnxdpi":    "DPI 워커 수 등 mnxdpi 엔진 설정. (mnx_config.json)",
+    "pcap":      "PCAP 캡처/읽기 관련 파라미터. (mnx_config.json)",
+    "capture":   "캡처 대상 인터페이스 및 옵션. (config.ini)",
+    "mnxmc":     "콘솔 세션 타임아웃·최대 동시 세션. (mnxmc_console.json)",
+    "svcctrl":   "service_control 동작 설정. (settings.json)",
+}
+
 
 class MnxConfigScreen(BaseScreen):
     """MNX configuration editor screen (공통 BaseScreen 골격 사용)."""
@@ -862,6 +873,11 @@ class MnxConfigScreen(BaseScreen):
 
         scroll = self.query_one("#form-scroll")
         scroll.remove_children()
+
+        # 섹션 설명 (설정 페이지 느낌 — Option/Description 명확화)
+        desc = SECTION_DESC.get(section_key)
+        if desc:
+            scroll.mount(Static(f"[bright_black]{desc}[/]", classes="section-desc"))
 
         for field_key in self._field_keys:
             label_text, hint = FIELD_LABELS[section_key][field_key]
