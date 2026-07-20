@@ -10,19 +10,16 @@ Features:
 """
 
 from textual.app import ComposeResult
-from textual.screen import Screen
-from textual.widgets import Footer, Static, ListView, ListItem, Label, Input
-from textual.containers import Container, Vertical, Center
+from textual.widgets import Static, ListView
 from textual.binding import Binding
-from textual import on
-from app.widgets import CustomHeader
+from app.ui.screen import BaseScreen
 import subprocess
 import os
 import sys
 import pwd
 
 
-class ShellScreen(Screen):
+class ShellScreen(BaseScreen):
     """
     Command Shell 화면.
     
@@ -32,55 +29,6 @@ class ShellScreen(Screen):
     CSS = """
     ShellScreen {
         background: #0c0c0c;
-    }
-
-    #main-container {
-        width: 100%;
-        height: 100%;
-        layout: horizontal;
-        background: #0c0c0c;
-    }
-
-    #left-panel {
-        width: 25%;
-        height: 100%;
-        background: #0c0c0c;
-        border-right: solid #5fd7d7;
-    }
-    
-    #menu-title {
-        width: 100%;
-        height: 1;
-        background: #333333;
-        color: white;
-        text-style: bold;
-        padding: 0 2;
-    }
-
-    #menu-list {
-        width: 100%;
-        height: 1fr;
-        background: #0c0c0c;
-        border: none;
-        padding: 1 0;
-    }
-
-    #menu-list > ListItem {
-        background: #0c0c0c;
-        color: white;
-        height: 1;
-        padding: 0 2;
-    }
-
-    #menu-list > ListItem:hover {
-        background: #5fd7d7;
-        color: black;
-    }
-
-    #menu-list:focus > ListItem.--highlight {
-        background: #5fd7d7;
-        color: black;
-        text-style: bold;
     }
 
     #content-panel {
@@ -119,53 +67,38 @@ class ShellScreen(Screen):
         ("history", "Command History"),
         ("shell", "Launch Shell"),
     ]
-    
+
+    SIDEBAR_TITLE = "COMMAND SHELL"
+    SIDEBAR_ITEMS = MENU_ITEMS          # nav_id 가 곧 현재 뷰 키
+    FOOTER_KEYS = [
+        ("↑↓", "Select"),
+        ("Enter", "Open"),
+        ("F10", "Exit"),
+        ("ESC", "Back"),
+    ]
+
     def __init__(self) -> None:
         super().__init__()
         self._current_view = "info"
-        self._menu_texts = {}
         self._shell_active = False  # 이중 실행 방지
-    
-    def compose(self) -> ComposeResult:
-        yield CustomHeader()
-        
-        with Container(id="main-container"):
-            with Container(id="left-panel"):
-                yield Static("Command Shell", id="menu-title")
-                yield ListView(id="menu-list")
-            
-            with Container(id="content-panel"):
-                yield Static("Shell Info", id="content-title")
-                yield Static(self._get_content(), id="shell-content")
-        
-        yield Footer()
-    
+
+    def compose_content(self) -> ComposeResult:
+        yield Static("Shell Info", id="content-title")
+        yield Static(self._get_content(), id="shell-content")
+
     def on_mount(self) -> None:
         """화면 마운트 시 초기화."""
         self.log.info("ShellScreen mounted")
-        
-        # 메뉴 항목 추가
-        try:
-            menu_list = self.query_one("#menu-list", ListView)
-            for item_id, item_text in self.MENU_ITEMS:
-                menu_id = f"menu-{item_id}"
-                item = ListItem(Label(f"  {item_text}"), id=menu_id)
-                self._menu_texts[menu_id] = item_text
-                menu_list.append(item)
-        except Exception as e:
-            self.log.error(f"Menu setup failed: {e}")
-        
-        # 메뉴 초기화
+        # 사이드바 항목은 BaseScreen 이 SIDEBAR_ITEMS 로 구성함
         self.set_timer(0.1, self._initialize_menu)
-    
+
     def _initialize_menu(self) -> None:
-        """메뉴 초기화."""
+        """사이드바 초기 포커스/선택."""
         try:
-            menu_list = self.query_one("#menu-list", ListView)
+            menu_list = self.query_one("Sidebar ListView", ListView)
             menu_list.focus()
             if menu_list.children:
-                menu_list.index = 1  # "Launch Shell" 선택
-            self._update_menu_selection()
+                menu_list.index = 1  # "Shell Info"
         except Exception as e:
             self.log.error(f"Menu init failed: {e}")
     
@@ -297,86 +230,20 @@ History file will be created after shell usage.
 [red]Error reading history: {e}[/]
 """
     
-    @on(ListView.Selected)
-    def handle_menu_selection(self, event: ListView.Selected) -> None:
-        """메뉴 선택 처리."""
+    def on_nav_selected(self, item_id: str) -> None:
+        """사이드바 선택 처리 (Enter)."""
         try:
-            item_id = event.item.id
-            
-            if item_id == "menu-back":
+            if item_id == "back":
                 self.app.pop_screen()
                 return
-            
-            if item_id == "menu-shell":
-                # 셸 실행
+            if item_id == "shell":
                 self._launch_shell()
                 return
-            
-            view_map = {
-                "menu-info": "info",
-                "menu-shell": "shell",
-                "menu-history": "history",
-            }
-            
-            self._current_view = view_map.get(item_id, "info")
-            self._update_menu_selection()
+            self._current_view = item_id
             self._update_content()
-            
         except Exception as e:
             self.log.error(f"Selection error: {e}")
-    
-    @on(ListView.Highlighted)
-    def handle_menu_highlight(self, event: ListView.Highlighted) -> None:
-        """메뉴 하이라이트 처리."""
-        try:
-            menu_list = self.query_one("#menu-list", ListView)
-            
-            view_to_menu = {
-                "info": "menu-info",
-                "shell": "menu-shell",
-                "history": "menu-history",
-            }
-            selected_menu_id = view_to_menu.get(self._current_view, "menu-info")
-            
-            for item in menu_list.children:
-                if isinstance(item, ListItem) and item.id:
-                    label = item.query_one(Label)
-                    text = self._menu_texts.get(item.id, "")
-                    
-                    if item == event.item:
-                        label.update(f"[reverse] ▸ {text} [/]")
-                    elif item.id == selected_menu_id:
-                        label.update(f"[cyan]▸ {text}[/]")
-                    else:
-                        label.update(f"  {text}")
-        except Exception as e:
-            self.log.error(f"Highlight error: {e}")
-    
-    def _update_menu_selection(self) -> None:
-        """선택된 메뉴 항목 표시 업데이트."""
-        try:
-            menu_list = self.query_one("#menu-list", ListView)
-            
-            view_to_menu = {
-                "info": "menu-info",
-                "shell": "menu-shell",
-                "history": "menu-history",
-            }
-            
-            selected_menu_id = view_to_menu.get(self._current_view, "menu-info")
-            
-            for item in menu_list.children:
-                if isinstance(item, ListItem) and item.id:
-                    label = item.query_one(Label)
-                    text = self._menu_texts.get(item.id, "")
-                    
-                    if item.id == selected_menu_id:
-                        label.update(f"[cyan]▸ {text}[/]")
-                    else:
-                        label.update(f"  {text}")
-        except Exception as e:
-            self.log.error(f"Menu selection update error: {e}")
-    
+
     def _update_content(self) -> None:
         """콘텐츠 업데이트."""
         _titles = {
@@ -504,10 +371,9 @@ History file will be created after shell usage.
         """ESC: 세부 뷰 → 메뉴 복귀, 기본 뷰(info) → 이전 화면."""
         if self._current_view != "info":
             self._current_view = "info"
-            self._update_menu_selection()
             self._update_content()
             try:
-                self.query_one("#menu-list", ListView).focus()
+                self.query_one("Sidebar ListView", ListView).focus()
             except Exception:
                 pass
         else:
