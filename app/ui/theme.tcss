@@ -1,0 +1,167 @@
+/* ============================================================================
+ * MNXMC Design System — Textual Stylesheet
+ *
+ * Enterprise Network Appliance 수준의 일관된 화면 골격(Shell) 스타일.
+ * Header / Sidebar / Content / Footer 4구획 레이아웃과 공통 컴포넌트 스타일을
+ * 이 파일에서 단일 정의한다.
+ *
+ * ⚠ tokens.py 와 짝을 이룬다. 색상 hex 값은 tokens.py::Color 와 동일하게 유지.
+ *    한쪽 수정 시 반드시 다른 쪽도 함께 수정한다.
+ *
+ * 사용법 (Phase 2 이후 각 화면 마이그레이션 시):
+ *    App.CSS_PATH = ["app/ui/theme.tcss", "app/styles/theme.tcss"]
+ *    화면은 app.ui.screen.BaseScreen 을 상속한다.
+ * ========================================================================== */
+
+/* ── App Shell 4구획 레이아웃 ─────────────────────────────────────────── */
+
+AppShell {
+    layout: vertical;
+    background: #0b0f14;      /* Color.BG */
+    color: #e6edf3;           /* Color.TEXT */
+}
+
+AppShell #shell-body {
+    layout: horizontal;
+    height: 1fr;
+}
+
+/* ── Header (항상 표시, 고정 높이 3) ──────────────────────────────────── */
+
+AppHeader {
+    height: 3;
+    width: 100%;
+    background: #11161d;      /* Color.SURFACE */
+    color: #e6edf3;
+    border-bottom: solid #2a3440;   /* Color.BORDER */
+    padding: 0 2;
+    content-align: left middle;
+}
+
+/* ── Sidebar (항상 동일 폭 26, 스크롤 지원) ───────────────────────────── */
+
+Sidebar {
+    width: 26;                /* Space.SIDEBAR_WIDTH */
+    min-width: 26;
+    height: 100%;
+    background: #0d1219;
+    border-right: solid #2a3440;
+    padding: 1 0;
+    overflow-y: auto;
+}
+
+Sidebar .nav-category {
+    color: #8b98a5;           /* Color.TEXT_MUTED */
+    text-style: bold;
+    padding: 1 2 0 2;
+}
+
+Sidebar ListView {
+    background: transparent;
+    height: auto;
+}
+
+Sidebar ListItem {
+    padding: 0 2;
+    color: #e6edf3;
+    background: transparent;
+}
+
+Sidebar ListItem:hover {
+    background: #1c2530;      /* Color.HOVER */
+}
+
+Sidebar ListItem.-highlight,
+Sidebar ListView:focus > ListItem.-highlight {
+    background: #00aeef;      /* Color.SELECTED_BG */
+    color: #04141b;           /* Color.SELECTED_FG */
+    text-style: bold;
+}
+
+/* ── Content (Card / Section / Panel 기반) ────────────────────────────── */
+
+#content {
+    width: 1fr;
+    height: 100%;
+    background: #0b0f14;
+    padding: 1 2;
+    overflow-y: auto;
+}
+
+/* ── Footer (Function Key, 항상 동일, 고정 높이 1) ────────────────────── */
+
+AppFooter {
+    height: 1;
+    width: 100%;
+    background: #11161d;
+    color: #8b98a5;
+    border-top: solid #2a3440;
+    padding: 0 1;
+}
+
+/* ============================================================================
+ * 공통 컴포넌트 스타일
+ * ========================================================================== */
+
+/* ── SectionTitle ────────────────────────────────────────────────────── */
+
+SectionTitle {
+    width: 100%;
+    height: 1;
+    color: #00aeef;           /* Color.PRIMARY */
+    text-style: bold;
+    margin: 1 0 0 0;
+}
+
+/* ── Card (StatusCard / MetricCard 공통 골격) ─────────────────────────── */
+
+Card {
+    background: #11161d;      /* Color.SURFACE */
+    border: round #2a3440;    /* Color.BORDER */
+    padding: 1 2;
+    margin: 0 1 1 0;
+    height: auto;
+}
+
+Card:focus-within {
+    border: round #00aeef;
+}
+
+Card .card-title {
+    color: #8b98a5;
+    text-style: bold;
+}
+
+Card .card-value {
+    color: #e6edf3;
+    text-style: bold;
+}
+
+/* ── PropertyGrid (key-value) ────────────────────────────────────────── */
+
+PropertyGrid {
+    height: auto;
+    padding: 0;
+}
+
+/* ── MeterBar ────────────────────────────────────────────────────────── */
+
+MeterBar {
+    height: 1;
+    width: 100%;
+}
+
+/* ── MessageBox 변형 (Info / Warning / Error / Success) ───────────────── */
+
+MessageBox {
+    height: auto;
+    width: 100%;
+    padding: 0 2;
+    margin: 1 0;
+    border: round #2a3440;
+}
+
+MessageBox.-info    { border: round #58a6ff; color: #58a6ff; }
+MessageBox.-warning { border: round #d29922; color: #d29922; }
+MessageBox.-error   { border: round #f85149; color: #f85149; }
+MessageBox.-success { border: round #3fb950; color: #3fb950; }
