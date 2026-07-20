@@ -15,114 +15,23 @@ Features:
 import threading
 
 from textual.app import ComposeResult
-from textual.screen import Screen
-from textual.widgets import Footer, Static, ListView, ListItem, Label
-from textual.containers import Container, Vertical, ScrollableContainer
+from textual.widgets import Static, ListView
+from textual.containers import ScrollableContainer
 from textual.binding import Binding
-from textual import on
-from app.widgets import CustomHeader
+
+from app.ui.screen import BaseScreen
+from app.ui.widgets import SectionTitle
 
 
-class PerformanceScreen(Screen):
+class PerformanceScreen(BaseScreen):
     """
     성능 모니터 화면.
-    
-    왼쪽 메뉴에서 항목을 선택하면 해당 섹션의 상세 정보를 표시합니다.
+
+    공통 디자인 시스템(BaseScreen)의 4구획 골격을 사용하며,
+    좌측 사이드바에서 항목을 선택하면 해당 섹션의 상세 정보를 표시합니다.
+    콘텐츠 렌더링 로직은 기존과 동일하게 유지합니다.
     """
-    
-    CSS = """
-    PerformanceScreen {
-        background: #0c0c0c;
-    }
 
-    #main-container {
-        width: 100%;
-        height: 100%;
-        layout: horizontal;
-        background: #0c0c0c;
-    }
-
-    #left-panel {
-        width: 25%;
-        height: 100%;
-        background: #0c0c0c;
-        border-right: solid #5fd7d7;
-    }
-
-    #menu-title {
-        width: 100%;
-        height: 1;
-        background: #333333;
-        color: white;
-        text-style: bold;
-        padding: 0 2;
-    }
-
-    #menu-list {
-        width: 100%;
-        height: 1fr;
-        background: #0c0c0c;
-        border: none;
-        padding: 1 0;
-    }
-
-    #menu-list > ListItem {
-        background: #0c0c0c;
-        color: white;
-        height: 1;
-        padding: 0 2;
-    }
-
-    #menu-list > ListItem:hover {
-        background: #5fd7d7;
-        color: black;
-    }
-
-    #menu-list:focus > ListItem.--highlight {
-        background: #5fd7d7;
-        color: black;
-        text-style: bold;
-    }
-
-    #right-panel {
-        width: 1fr;
-        height: 100%;
-        background: #0c0c0c;
-    }
-
-    #content-title {
-        width: 100%;
-        height: 1;
-        background: #333333;
-        color: white;
-        text-style: bold;
-        padding: 0 2;
-    }
-
-    #content-panel {
-        width: 100%;
-        height: 1fr;
-        background: #0c0c0c;
-        padding: 1 2;
-    }
-
-
-
-    #perf-info {
-        width: 100%;
-        height: auto;
-        color: white;
-        background: #0c0c0c;
-    }
-    
-    #scroll-hint {
-        width: 100%;
-        height: 1;
-        color: ansi_bright_black;
-        text-align: right;
-    }
-    """
-    
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
         Binding("f5", "refresh", "Refresh"),
@@ -132,171 +41,74 @@ class PerformanceScreen(Screen):
         Binding("home", "scroll_home", "Home", show=False),
         Binding("end", "scroll_end", "End", show=False),
     ]
-    
-    # 메뉴 항목
-    MENU_ITEMS = [
-        ("back", "← Back"),
-        ("all", "All Information"),
-        ("cpu", "CPU Usage"),
-        ("memory", "Memory Usage"),
-        ("disk", "Disk I/O Stats"),
+
+    SIDEBAR_TITLE = "PERFORMANCE"
+
+    # (nav_id, 라벨) — nav_id 는 곧 현재 뷰(view) 키
+    SIDEBAR_ITEMS = [
+        ("back",    "← Back"),
+        ("all",     "All Information"),
+        ("cpu",     "CPU Usage"),
+        ("memory",  "Memory Usage"),
+        ("disk",    "Disk I/O Stats"),
         ("network", "Network I/O"),
         ("process", "Top Processes"),
     ]
-    
+
+    FOOTER_KEYS = [
+        ("↑↓", "Select"),
+        ("Enter", "Open"),
+        ("F5", "Refresh"),
+        ("Tab", "Focus"),
+        ("F10", "Exit"),
+        ("ESC", "Back"),
+    ]
+
     def __init__(self) -> None:
         super().__init__()
         self._max_cores_display = 32
         self._current_view = "all"  # 현재 표시 중인 뷰
-        self._menu_texts = {}  # 메뉴 항목의 원본 텍스트 저장
-    
-    def compose(self) -> ComposeResult:
-        yield CustomHeader()
-        
-        with Container(id="main-container"):
-            # 좌측 메뉴
-            with Container(id="left-panel"):
-                yield Static(" Performance Monitor ", id="menu-title")
-                yield ListView(id="menu-list")
 
-            # 우측 콘텐츠
-            with Vertical(id="right-panel"):
-                yield Static("All Information", id="content-title")
-                with ScrollableContainer(id="content-panel"):
-                    yield Static(self._get_all_info(), id="perf-info")
-                    yield Static("[bright_black]Tab: switch focus | ↑↓ PgUp/PgDn: scroll[/]", id="scroll-hint")
-        
-        yield Footer()
-    
+    def compose_content(self) -> ComposeResult:
+        yield SectionTitle("All Information", id="content-title")
+        with ScrollableContainer(id="content-panel"):
+            yield Static(self._get_all_info(), id="perf-info")
+            yield Static("[bright_black]Tab: switch focus | ↑↓ PgUp/PgDn: scroll[/]", id="scroll-hint")
+
     def on_mount(self) -> None:
         """화면 마운트 시 초기화."""
         self.log.info("PerformanceScreen mounted")
-        
-        # 메뉴 항목 추가
-        try:
-            menu_list = self.query_one("#menu-list", ListView)
-            for item_id, item_text in self.MENU_ITEMS:
-                menu_id = f"menu-{item_id}"
-                item = ListItem(Label(f"  {item_text}"), id=menu_id)
-                self._menu_texts[menu_id] = item_text  # 원본 텍스트 저장
-                menu_list.append(item)
-        except Exception as e:
-            self.log.error(f"Menu setup failed: {e}")
-        
-        # 메뉴 포커스 및 초기 선택 표시
+        # 사이드바 포커스 및 초기 선택("All Information")
         self.set_timer(0.1, self._initialize_menu)
-        
         # 1초 간격 업데이트
         self._update_handle = self.set_interval(1.0, self._update_info)
-    
+
     def on_unmount(self) -> None:
         """화면 언마운트 시 타이머 정리."""
-        if hasattr(self, '_update_handle') and self._update_handle:
+        if getattr(self, "_update_handle", None):
             self._update_handle.stop()
 
-
     def _initialize_menu(self) -> None:
-        """메뉴 초기화."""
+        """사이드바 초기 포커스/선택."""
         try:
-            menu_list = self.query_one("#menu-list", ListView)
+            menu_list = self.query_one("Sidebar ListView", ListView)
             menu_list.focus()
             if menu_list.children:
-                menu_list.index = 1  # "All Information" 선택
-            self._update_menu_selection()
+                menu_list.index = 1  # "All Information"
         except Exception as e:
             self.log.error(f"Menu init failed: {e}")
-    
-    @on(ListView.Selected)
-    def handle_menu_selection(self, event: ListView.Selected) -> None:
-        """메뉴 선택 처리."""
+
+    def on_nav_selected(self, item_id: str) -> None:
+        """사이드바 선택 처리 (Enter)."""
         try:
-            item_id = event.item.id
-            
-            if item_id == "menu-back":
+            if item_id == "back":
                 self.app.pop_screen()
                 return
-            
-            # 현재 뷰 변경
-            view_map = {
-                "menu-all": "all",
-                "menu-cpu": "cpu",
-                "menu-memory": "memory",
-                "menu-disk": "disk",
-                "menu-network": "network",
-                "menu-process": "process",
-            }
-            
-            self._current_view = view_map.get(item_id, "all")
-            self._update_menu_selection()
+            self._current_view = item_id
             self._update_info()
-            
         except Exception as e:
             self.log.error(f"Selection error: {e}")
-    
-    def _update_menu_selection(self) -> None:
-        """선택된 메뉴 항목 표시 업데이트."""
-        try:
-            menu_list = self.query_one("#menu-list", ListView)
-            
-            view_to_menu = {
-                "all": "menu-all",
-                "cpu": "menu-cpu",
-                "memory": "menu-memory",
-                "disk": "menu-disk",
-                "network": "menu-network",
-                "process": "menu-process",
-            }
-            
-            selected_menu_id = view_to_menu.get(self._current_view, "menu-all")
-            
-            for item in menu_list.children:
-                if isinstance(item, ListItem) and item.id:
-                    label = item.query_one(Label)
-                    
-                    # 저장된 원본 텍스트 사용
-                    text = self._menu_texts.get(item.id, "")
-                    
-                    # 현재 선택된 뷰에 마커 추가
-                    if item.id == selected_menu_id:
-                        label.update(f"[cyan]▸ {text}[/]")
-                    else:
-                        label.update(f"  {text}")
-        except Exception as e:
-            self.log.error(f"Menu selection update error: {e}")
-    
-    @on(ListView.Highlighted)
-    def handle_menu_highlight(self, event: ListView.Highlighted) -> None:
-        """메뉴 하이라이트 처리 - 키보드 이동 시 시각적 피드백."""
-        try:
-            menu_list = self.query_one("#menu-list", ListView)
-            
-            view_to_menu = {
-                "all": "menu-all",
-                "cpu": "menu-cpu",
-                "memory": "menu-memory",
-                "disk": "menu-disk",
-                "network": "menu-network",
-                "process": "menu-process",
-            }
-            selected_menu_id = view_to_menu.get(self._current_view, "menu-all")
-            
-            for item in menu_list.children:
-                if isinstance(item, ListItem) and item.id:
-                    label = item.query_one(Label)
-                    text = self._menu_texts.get(item.id, "")
-                    
-                    if item == event.item:
-                        # 현재 하이라이트된 항목 (키보드 커서 위치)
-                        label.update(f"[reverse] ▸ {text} [/]")
-                    elif item.id == selected_menu_id:
-                        # 선택된 항목 (Enter로 선택한 항목)
-                        label.update(f"[cyan]▸ {text}[/]")
-                    else:
-                        # 일반 항목
-                        label.update(f"  {text}")
-        except Exception as e:
-            self.log.error(f"Highlight error: {e}")
-    
+
     def _update_info(self) -> None:
         """정보 업데이트. (비동기 — blocking subprocess를 스레드로 오프로드)"""
         _titles = {
@@ -883,23 +695,24 @@ class PerformanceScreen(Screen):
         """ESC: 세부 뷰 → 메뉴 복귀, 기본 뷰(all) → 이전 화면."""
         if self._current_view != "all":
             self._current_view = "all"
-            self._update_menu_selection()
             self._update_info()
             try:
-                self.query_one("#menu-list", ListView).focus()
+                menu = self.query_one("Sidebar ListView", ListView)
+                menu.index = 1  # "All Information"
+                menu.focus()
             except Exception:
                 pass
         else:
             self.app.pop_screen()
-    
+
     def action_refresh(self) -> None:
         """F5: 새로고침."""
         self._update_info()
-    
+
     def action_switch_focus(self) -> None:
         """Tab: 메뉴와 콘텐츠 간 포커스 전환."""
         try:
-            menu = self.query_one("#menu-list", ListView)
+            menu = self.query_one("Sidebar ListView", ListView)
             content = self.query_one("#content-panel", ScrollableContainer)
             
             if menu.has_focus:
