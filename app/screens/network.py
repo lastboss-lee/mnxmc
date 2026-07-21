@@ -80,33 +80,44 @@ class NetworkConfigModal(ModalScreen[dict]):
         content-align: left middle;
     }
 
-    /* ── 라디오 버튼 (◉ / ○) ── */
+    /* ── 라디오 버튼 (◉ / ○) ──
+       Textual Button 기본값: focus 시 text-style "b reverse"(반전)로 글자가
+       사라지고, -style-default 의 tall 테두리로 버튼이 커진다. !important 로
+       테두리 제거·높이 1 고정·반전 해제하여 항상 글자가 보이게 한다. */
     .radio-btn {
         width: auto;
         min-width: 14;
-        height: 1;
-        border: none;
-        background: transparent;
+        height: 1 !important;
+        border: none !important;
+        background: transparent !important;
         color: #8b98a5;
         content-align: left middle;
         padding: 0 1;
         margin: 0 1 0 0;
+        text-style: none !important;
     }
 
     .radio-btn:hover {
-        background: #1c2530;
+        background: #1c2530 !important;
         color: #e6edf3;
+        text-style: bold !important;
     }
 
     .radio-btn:focus {
-        background: transparent;
-        color: #e6edf3;
-        text-style: bold;
+        background: #1c2530 !important;
+        color: #33c9ff;
+        text-style: bold !important;
     }
 
     .radio-btn.active {
         color: #00aeef;
-        text-style: bold;
+        text-style: bold !important;
+    }
+
+    .radio-btn.active:focus {
+        background: #1c2530 !important;
+        color: #33c9ff;
+        text-style: bold !important;
     }
 
     /* ── 입력 필드 ── */
@@ -161,33 +172,34 @@ class NetworkConfigModal(ModalScreen[dict]):
     #btn-apply {
         width: auto;
         min-width: 18;
-        height: 1;
-        border: none;
+        height: 1 !important;
+        border: none !important;
         background: #00aeef;
         color: #04141b;
-        text-style: bold;
+        text-style: bold !important;
         content-align: center middle;
         padding: 0 2;
         margin: 0 1;
     }
 
-    #btn-apply:hover  { background: #33c9ff; }
-    #btn-apply:focus  { background: #33c9ff; text-style: bold; }
+    #btn-apply:hover  { background: #33c9ff !important; color: #04141b; text-style: bold !important; }
+    #btn-apply:focus  { background: #33c9ff !important; color: #04141b; text-style: bold !important; }
 
     #btn-cancel {
         width: auto;
         min-width: 14;
-        height: 1;
-        border: none;
+        height: 1 !important;
+        border: none !important;
         background: #2a3440;
         color: #e6edf3;
+        text-style: bold !important;
         content-align: center middle;
         padding: 0 2;
         margin: 0 1;
     }
 
-    #btn-cancel:hover { background: #3a4654; }
-    #btn-cancel:focus { background: #3a4654; text-style: bold; }
+    #btn-cancel:hover { background: #3a4654 !important; color: #e6edf3; text-style: bold !important; }
+    #btn-cancel:focus { background: #3a4654 !important; color: #e6edf3; text-style: bold !important; }
 
     #modal-hint {
         width: 100%;
