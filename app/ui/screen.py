@@ -15,6 +15,8 @@ Version: 2.2.0
 
 from __future__ import annotations
 
+import os
+import threading
 import time
 from typing import Iterable, Optional
 
@@ -26,6 +28,7 @@ from textual.screen import Screen
 from textual.widgets import ListItem, ListView, Static
 
 from app.ui import tokens
+from app.ui.status import collect_service_status
 from app.ui.tokens import Color, Glyph, Space
 
 
@@ -61,11 +64,41 @@ class AppHeader(Static):
     health:       reactive[str] = reactive("unknown")   # ok|warn|crit|unknown
 
     def on_mount(self) -> None:
+        # 호스트명 / 사용자 초기화
+        try:
+            self.hostname = os.uname().nodename
+        except Exception:
+            pass
+        try:
+            user = getattr(self.app, "authenticated_user", None)
+            if user:
+                self.user = user
+        except Exception:
+            pass
+        # 시계 (1초) + 서비스/알람/헬스 (8초, 스레드 오프로드)
         self._tick()
         self.set_interval(1.0, self._tick)
+        self._refresh_status()
+        self.set_interval(8.0, self._refresh_status)
 
     def _tick(self) -> None:
         self.clock = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    def _refresh_status(self) -> None:
+        """서비스 상태를 백그라운드에서 수집해 헤더 지표를 갱신한다."""
+        def _collect():
+            try:
+                data = collect_service_status()
+            except Exception:
+                return
+            self.app.call_from_thread(self._apply_status, data)
+        threading.Thread(target=_collect, daemon=True).start()
+
+    def _apply_status(self, data: dict) -> None:
+        self.svc_ok = data.get("svc_ok", 0)
+        self.svc_total = data.get("svc_total", 0)
+        self.alarms = data.get("alarms", 0)
+        self.health = data.get("health", "unknown")
 
     def render(self) -> Text:
         # 1행: 브랜드 + 호스트명
