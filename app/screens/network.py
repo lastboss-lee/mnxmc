@@ -38,35 +38,36 @@ class NetworkConfigModal(ModalScreen[dict]):
     CSS = """
     NetworkConfigModal {
         align: center middle;
-        background: rgba(0, 0, 0, 0.85);
+        background: rgba(0, 0, 0, 0.6);
     }
 
     #config-dialog {
-        width: 62;
+        width: 64;
         height: auto;
-        border: solid #5fd7d7;
+        border: round #00aeef;
         border-title-align: center;
-        border-title-color: #5fd7d7;
-        background: #1a1a1a;
-        padding: 0 2;
+        border-title-color: #00aeef;
+        border-title-style: bold;
+        background: #11161d;
+        padding: 1 2;
     }
 
-    /* ── 섹션 헤더 [ Title ] ─── */
+    /* ── 섹션 헤더 (대문자 라벨) ── */
     .section-header {
         width: 100%;
         height: 1;
+        color: #8b98a5;
+        text-style: bold;
         margin-top: 1;
     }
 
-    /* ── 링크 상태 ── */
     #link-status {
         width: 100%;
         height: 1;
-        padding: 0 1;
         margin-bottom: 1;
     }
 
-    /* ── Method 섹션 행 ── */
+    /* ── Method 행 ── */
     .method-row {
         width: 100%;
         height: 1;
@@ -75,97 +76,77 @@ class NetworkConfigModal(ModalScreen[dict]):
     .method-label {
         width: 12;
         height: 1;
-        color: #aaaaaa;
+        color: #8b98a5;
         content-align: left middle;
     }
 
-    /* ── 라디오 버튼 ([ ] / [●]) ── */
+    /* ── 라디오 버튼 (◉ / ○) ── */
     .radio-btn {
         width: auto;
-        min-width: 12;
+        min-width: 14;
         height: 1;
         border: none;
         background: transparent;
-        color: #767676;
+        color: #8b98a5;
         content-align: left middle;
-        padding: 0;
-        margin: 0 1;
+        padding: 0 1;
+        margin: 0 1 0 0;
     }
 
     .radio-btn:hover {
-        background: transparent;
-        border: none;
-        color: white;
+        background: #1c2530;
+        color: #e6edf3;
     }
 
     .radio-btn:focus {
-        border: none;
         background: transparent;
-        color: white;
+        color: #e6edf3;
         text-style: bold;
     }
 
     .radio-btn.active {
-        color: #5fd7d7;
-        background: transparent;
+        color: #00aeef;
         text-style: bold;
-        border: none;
     }
 
-    /* ── 입력 필드 (언더라인 스타일) ── */
+    /* ── 입력 필드 ── */
     .field-row {
         width: 100%;
-        height: 2;
+        height: 1;
         layout: horizontal;
     }
 
     .field-label {
         width: 13;
-        height: 2;
-        color: #aaaaaa;
+        height: 1;
+        color: #8b98a5;
         content-align: left middle;
     }
 
     .field-input {
         width: 1fr;
-        height: 2;
-        border-top: none;
-        border-left: none;
-        border-right: none;
-        border-bottom: solid #5fd7d7;
-        background: transparent;
-        color: white;
+        height: 1;
+        border: none;
+        background: #0b0f14;
+        color: #e6edf3;
         padding: 0 1;
     }
 
     .field-input:focus {
-        border-top: none;
-        border-left: none;
-        border-right: none;
-        border-bottom: solid white;
-        background: transparent;
-        color: yellow;
+        background: #0b0f14;
+        color: #33c9ff;
     }
 
-    .field-input.-disabled {
-        color: #333333;
-        background: transparent;
-        border-top: none;
-        border-left: none;
-        border-right: none;
-        border-bottom: solid #333333;
+    .field-input:disabled {
+        color: #5a6673;
+        background: #0d1219;
     }
 
-    /* ── 에러 + 하단 구분선 + 버튼 ── */
+    /* ── 에러 + 버튼 + 힌트 ── */
     #error-message {
         width: 100%;
         height: 1;
-        color: #ff5555;
-    }
-
-    #sep-bottom {
-        width: 100%;
-        height: 1;
+        color: #f85149;
         margin-top: 1;
     }
 
@@ -174,60 +155,46 @@ class NetworkConfigModal(ModalScreen[dict]):
         height: 1;
         layout: horizontal;
         align: center middle;
-        margin-top: 0;
-        margin-bottom: 1;
+        margin-top: 1;
     }
 
     #btn-apply {
-        width: 20;
+        width: auto;
+        min-width: 18;
         height: 1;
         border: none;
-        background: transparent;
-        color: #5fd7d7;
+        background: #00aeef;
+        color: #04141b;
         text-style: bold;
         content-align: center middle;
-        padding: 0;
-        margin: 0 2;
+        padding: 0 2;
+        margin: 0 1;
     }
 
-    #btn-apply:hover {
-        color: black;
-        background: #5fd7d7;
-        border: none;
-        text-style: bold;
-    }
-
-    #btn-apply:focus {
-        border: none;
-        color: black;
-        background: #5fd7d7;
-        text-style: bold;
-    }
+    #btn-apply:hover  { background: #33c9ff; }
+    #btn-apply:focus  { background: #33c9ff; text-style: bold; }
 
     #btn-cancel {
-        width: 20;
+        width: auto;
+        min-width: 14;
         height: 1;
         border: none;
-        background: transparent;
-        color: #cc4444;
-        text-style: bold;
+        background: #2a3440;
+        color: #e6edf3;
         content-align: center middle;
-        padding: 0;
-        margin: 0 2;
+        padding: 0 2;
+        margin: 0 1;
     }
 
-    #btn-cancel:hover {
-        color: black;
-        background: #cc4444;
-        border: none;
-        text-style: bold;
-    }
+    #btn-cancel:hover { background: #3a4654; }
+    #btn-cancel:focus { background: #3a4654; text-style: bold; }
 
-    #btn-cancel:focus {
-        border: none;
-        color: black;
-        background: #cc4444;
-        text-style: bold;
+    #modal-hint {
+        width: 100%;
+        height: 1;
+        color: #5a6673;
+        content-align: center middle;
+        margin-top: 1;
     }
     """
 
@@ -286,43 +253,34 @@ class NetworkConfigModal(ModalScreen[dict]):
     def compose(self) -> ComposeResult:
         with Vertical(id="config-dialog"):
 
-            # ── [ Status ] ────────────────────────────────────
-            yield Static(
-                r"[bold #5fd7d7]\[ Status \][/] [bright_black]" + "─" * 43 + "[/]",
-                classes="section-header",
-            )
+            # ── STATUS ────────────────────────────────────────
+            yield Static("STATUS", classes="section-header")
             status = self.interface_status
             if status == "NO-CARRIER":
-                link_text = "[yellow]⚠ NO-CARRIER — cable unplugged. Config saved; applies when connected.[/]"
+                link_text = "[#d29922]▲ NO-CARRIER — cable unplugged. Config saved; applies when connected.[/]"
             elif status == "DOWN":
-                link_text = "[red]⚠ Interface is DOWN. Config will apply when brought up.[/]"
+                link_text = "[#f85149]▲ Interface is DOWN. Config will apply when brought up.[/]"
             else:
-                link_text = f"[green]● Link {status}[/]"
-            yield Static(f" {link_text}", id="link-status")
+                link_text = f"[#3fb950]● Link {status}[/]"
+            yield Static(f"{link_text}", id="link-status")
 
-            # ── [ Method ] ────────────────────────────────────
-            yield Static(
-                r"[bold #5fd7d7]\[ Method \][/] [bright_black]" + "─" * 44 + "[/]",
-                classes="section-header",
-            )
+            # ── METHOD ────────────────────────────────────────
+            yield Static("METHOD", classes="section-header")
             with Horizontal(id="protocol-row", classes="method-row"):
-                yield Static("Protocol:", classes="method-label")
-                yield Button(r"\[ \] IPv4", id="btn-ipv4", classes="radio-btn")
-                yield Button(r"\[ \] IPv6", id="btn-ipv6", classes="radio-btn")
+                yield Static("Protocol", classes="method-label")
+                yield Button("○ IPv4", id="btn-ipv4", classes="radio-btn")
+                yield Button("○ IPv6", id="btn-ipv6", classes="radio-btn")
             with Horizontal(classes="method-row"):
-                yield Static("Assign:",  classes="method-label")
-                yield Button(r"\[ \] Mirror",  id="btn-mode-mirror",  classes="radio-btn")
-                yield Button(r"\[ \] DHCP",    id="btn-mode-dhcp",    classes="radio-btn")
+                yield Static("Assign",  classes="method-label")
+                yield Button("○ Mirror",  id="btn-mode-mirror",  classes="radio-btn")
+                yield Button("○ DHCP",    id="btn-mode-dhcp",    classes="radio-btn")
             with Horizontal(classes="method-row"):
                 yield Static("",         classes="method-label")
-                yield Button(r"\[ \] Static",  id="btn-mode-static",  classes="radio-btn")
-                yield Button(r"\[ \] Disable", id="btn-mode-disable", classes="radio-btn")
+                yield Button("○ Static",  id="btn-mode-static",  classes="radio-btn")
+                yield Button("○ Disable", id="btn-mode-disable", classes="radio-btn")
 
-            # ── [ Configuration ] ─────────────────────────────
-            yield Static(
-                r"[bold #5fd7d7]\[ Configuration \][/] [bright_black]" + "─" * 35 + "[/]",
-                classes="section-header",
-            )
+            # ── CONFIGURATION ─────────────────────────────────
+            yield Static("CONFIGURATION", classes="section-header")
             with Horizontal(classes="field-row"):
                 yield Static("IP Address:", classes="field-label")
                 yield Input(
@@ -358,11 +316,14 @@ class NetworkConfigModal(ModalScreen[dict]):
 
             yield Static("", id="error-message")
 
-            # ── 하단 구분선 + 버튼 ──────────────────────────────
-            yield Static("[bright_black]" + "─" * 56 + "[/]", id="sep-bottom")
+            # ── 버튼 + 단축키 힌트 ──────────────────────────────
             with Horizontal(id="button-row"):
-                yield Button(r"< \[A\]pply (Ctrl+S) >", id="btn-apply")
-                yield Button(r"< \[C\]ancel (ESC) >", id="btn-cancel")
+                yield Button("Apply", id="btn-apply")
+                yield Button("Cancel", id="btn-cancel")
+            yield Static(
+                "Ctrl+S Apply    ESC Cancel    M / D / S / N  Mode",
+                id="modal-hint",
+            )
 
     def on_mount(self) -> None:
         """마운트 시 초기 상태 반영."""
@@ -436,10 +397,10 @@ class NetworkConfigModal(ModalScreen[dict]):
             btn = self.query_one(f"#{btn_id}", Button)
             label = mode_labels[mode]
             if mode == self._mode:
-                btn.label = rf"\[●\] {label}"
+                btn.label = f"◉ {label}"
                 btn.add_class("active")
             else:
-                btn.label = rf"\[ \] {label}"
+                btn.label = f"○ {label}"
                 btn.remove_class("active")
 
         # IP 필드 활성화/비활성화
@@ -473,13 +434,13 @@ class NetworkConfigModal(ModalScreen[dict]):
         btn6 = self.query_one("#btn-ipv6", Button)
 
         if self._ipv4:
-            btn4.label = r"\[●\] IPv4"
-            btn6.label = r"\[ \] IPv6"
+            btn4.label = "◉ IPv4"
+            btn6.label = "○ IPv6"
             btn4.add_class("active")
             btn6.remove_class("active")
         else:
-            btn4.label = r"\[ \] IPv4"
-            btn6.label = r"\[●\] IPv6"
+            btn4.label = "○ IPv4"
+            btn6.label = "◉ IPv6"
             btn4.remove_class("active")
             btn6.add_class("active")
 
