@@ -746,7 +746,7 @@ class NetworkScreen(BaseScreen):
         dot = f"[{status_color}]●[/]"
         if state == "selected":
             return f"[cyan]▸[/] {dot} {name}{mode_tag}"
-        return f"  {dot} {name}{mode_tag}"
+        return f"› {dot} {name}{mode_tag}"
 
     def compose_content(self) -> ComposeResult:
         yield Static("Network Management", id="content-title")
@@ -768,7 +768,7 @@ class NetworkScreen(BaseScreen):
 
     def _build_sidebar_items(self) -> list:
         """현재 인터페이스 목록으로 사이드바 항목 리스트를 만든다."""
-        items = [("back", "  ← Back")]
+        items = [("back", "› ← Back")]
         filtered = self._filtered_interfaces()
         if filtered:
             names = [i.name for i in filtered]
@@ -861,7 +861,7 @@ class NetworkScreen(BaseScreen):
             sidebar = self.query_one(Sidebar)
         except Exception:
             return
-        sidebar.update_item_label("back", "  ← Back")
+        sidebar.update_item_label("back", "› ← Back")
         for iface in self._filtered_interfaces():
             state = "selected" if iface.name == self.selected_interface else "normal"
             sidebar.update_item_label(f"iface-{iface.name}",

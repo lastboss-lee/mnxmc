@@ -89,7 +89,7 @@ class LogsScreen(BaseScreen):
     ]
     
     SIDEBAR_TITLE = "LOG MONITOR"
-    SIDEBAR_BULLET = False   # LOG_SOURCES 라벨이 자체 서식을 가짐
+    SIDEBAR_BULLET = True   # 항목 앞에 캐럿(›) — 전 화면 통일 (헤더/구분선은 제외)
 
     def __init__(self) -> None:
         """LogsScreen을 초기화합니다."""
@@ -221,11 +221,11 @@ class LogsScreen(BaseScreen):
             return
         for sid, text in self._item_text.items():
             if sid == "back":
-                sidebar.update_item_label("back", "  ← Back")
+                sidebar.update_item_label("back", "› ← Back")
             elif sid == self._current_log:
                 sidebar.update_item_label(sid, f"[cyan]▸ {text}[/]")
             else:
-                sidebar.update_item_label(sid, f"  {text}")
+                sidebar.update_item_label(sid, f"› {text}")
     
     # ═══════════════════════════════════════════════════════════════════════
     # Log Content Display

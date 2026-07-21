@@ -286,11 +286,14 @@ class MnxConfigScreen(BaseScreen):
     """MNX configuration editor screen (공통 BaseScreen 골격 사용)."""
 
     SIDEBAR_TITLE = "MNX CONFIG"
-    SIDEBAR_BULLET = False   # MENU_ITEMS 라벨이 자체 들여쓰기를 가짐
+    SIDEBAR_BULLET = True   # 항목 앞에 캐럿(›) — 전 화면 통일
+    # 헤더/구분선 라벨은 자체 서식 유지, 선택 항목은 들여쓰기 제거(캐럿이 대신함)
     SIDEBAR_ITEMS = [
-        (k, l, ("header" if k.startswith("hdr")
-                else "separator" if k.startswith("sep")
-                else "item"))
+        (k,
+         (l if (k.startswith("hdr") or k.startswith("sep")) else l.strip()),
+         ("header" if k.startswith("hdr")
+          else "separator" if k.startswith("sep")
+          else "item"))
         for k, l in MENU_ITEMS
     ]
 

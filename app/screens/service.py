@@ -320,19 +320,17 @@ class ServiceScreen(BaseScreen):
         except Exception:
             return
 
+        # 커서 하이라이트는 CSS(-highlight)가 담당. 항목은 캐럿(›)으로 시작하고
+        # 현재 열람 중(active)인 항목만 굵은 마커(▸ cyan)로 구분한다. (전 화면 통일)
+
         # ── Back ──────────────────────────────────────────────────────────────
-        if highlighted_id == "back":
-            sidebar.update_item_label("back", "[reverse] ▸ ← Back [/]")
-        else:
-            sidebar.update_item_label("back", "  ← Back")
+        sidebar.update_item_label("back", "› ← Back")
 
         # ── Overview ──────────────────────────────────────────────────────────
-        if highlighted_id == "overview":
-            sidebar.update_item_label("overview", "[reverse] ▸ Overview [/]")
-        elif self._is_overview:
+        if self._is_overview:
             sidebar.update_item_label("overview", "[cyan]▸ Overview[/]")
         else:
-            sidebar.update_item_label("overview", "  Overview")
+            sidebar.update_item_label("overview", "› Overview")
 
         # ── Services ──────────────────────────────────────────────────────────
         for i, (svc, short, _) in enumerate(self.SERVICES):
@@ -340,12 +338,10 @@ class ServiceScreen(BaseScreen):
             status = self._service_cache.get(svc, "unknown")
             color, symbol = self._status_icon(status)
             is_active = (not self._is_overview) and (self._current_svc == svc)
-            if key == highlighted_id:
-                sidebar.update_item_label(key, f"[reverse] ▸ {symbol} {short} [/]")
-            elif is_active:
+            if is_active:
                 sidebar.update_item_label(key, f"[cyan]▸[/] [{color}]{symbol}[/] {short}")
             else:
-                sidebar.update_item_label(key, f"  [{color}]{symbol}[/] {short}")
+                sidebar.update_item_label(key, f"› [{color}]{symbol}[/] {short}")
 
     def on_nav_highlighted(self, item_id: str) -> None:
         """커서 이동 → 우측 패널 즉시 갱신 + Back/Overview 반전 효과."""
