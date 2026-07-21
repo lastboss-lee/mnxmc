@@ -112,13 +112,10 @@ Sidebar ListView:focus > ListItem.-highlight {
     background: #0b0f14;
     padding: 1 2;
     overflow-y: auto;
-    border-left: solid #0b0f14;    /* 기본: 배경색과 동일 → 안 보임(폭만 확보) */
 }
-
-/* 콘텐츠(우측)가 활성일 때 좌측 경계선을 Primary 로 강조 */
-#content:focus-within {
-    border-left: solid #00aeef;
-}
+/* 콘텐츠 focus 는 별도 경계선을 두지 않는다 — 가운데 구분선은 사이드바
+   border-right 하나로 고정하고 색만 토글(움직이지 않음). 방향은 푸터의
+   ◀ MENU / CONTENT ▶ 가 표시한다. */
 
 /* ── Footer (Function Key, 항상 동일, 고정 높이 1) ────────────────────── */
 
