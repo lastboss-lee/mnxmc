@@ -361,6 +361,82 @@ class MnxConfigScreen(BaseScreen):
         background: #0c0c0c;
     }
 
+    /* ── Capture 인터페이스 배열 에디터 ── */
+    .cap-header {
+        width: 100%;
+        height: 1;
+        margin-top: 1;
+        background: #0c0c0c;
+    }
+
+    .cap-row {
+        width: 100%;
+        height: 1;
+        layout: horizontal;
+        background: #0c0c0c;
+    }
+
+    .cap-if {
+        width: 28;
+        height: 1 !important;
+        border: none !important;
+        background: #111820;
+        color: #87d7ff;
+        content-align: left middle;
+        padding: 0 1;
+        margin: 0 1 0 0;
+        text-style: none !important;
+    }
+
+    .cap-if:hover { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
+    .cap-if:focus { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
+
+    .cap-tag {
+        width: 18;
+        height: 1 !important;
+        border: none !important;
+        background: #111820;
+        color: white;
+        padding: 0 1;
+        margin: 0 1 0 0;
+    }
+
+    .cap-tag:focus {
+        height: 1 !important;
+        border: none !important;
+        background: #111820;
+        color: #87ffff;
+    }
+
+    .cap-rm {
+        width: 3;
+        min-width: 3;
+        height: 1 !important;
+        border: none !important;
+        background: transparent;
+        color: #ff5555;
+        content-align: center middle;
+        padding: 0;
+        text-style: none !important;
+    }
+
+    .cap-rm:hover  { background: #3a1a1a !important; text-style: bold !important; }
+    .cap-rm:focus  { background: #3a1a1a !important; color: #ff5555; text-style: bold !important; }
+
+    .cap-add-btn {
+        width: auto;
+        height: 1 !important;
+        border: none !important;
+        background: transparent;
+        color: #5fd7d7;
+        padding: 0 1;
+        margin: 1 0 0 0;
+        text-style: none !important;
+    }
+
+    .cap-add-btn:hover { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
+    .cap-add-btn:focus { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
+
     .field-input {
         width: 1fr;
         height: 2;
@@ -805,6 +881,10 @@ class MnxConfigScreen(BaseScreen):
             self._show_ufw_section(section_key)
             return
 
+        if section_key == "capture":
+            self._show_capture_section()
+            return
+
         self._current_section = section_key
         self._field_keys = list(DEFAULTS[section_key].keys())
 
@@ -856,6 +936,174 @@ class MnxConfigScreen(BaseScreen):
 
         if section_key == "svcctrl":
             self.call_after_refresh(self._mount_svcctrl_info)
+
+    # ── Capture 인터페이스 배열 에디터 ─────────────────────────────────────────
+    #
+    # interface / interfaceOps 는 config.ini 에 `;` 구분 병렬 배열로 저장된다.
+    #   interface    = eno3;eno4;eno2np1
+    #   interfaceOps = tags=Net-1;tags=Net-2;tags=Net-2   (index 로 짝, tags= 접두어)
+    # raw 텍스트 편집은 순서·개수·오타에 취약하므로, "인터페이스(드롭다운 선택)
+    # + 태그(입력)" 행 배열로 편집한다. 저장은 기존 _save_ini_section 이 두 줄만
+    # 치환(파일 전체 보존)하고 tags= 접두어를 자동 부착한다.
+
+    def _show_capture_section(self, pairs=None) -> None:
+        self._current_section = "capture"
+        self._field_keys = []
+        self.query_one("#panel-title", Static).update(" Capture Config › Interfaces")
+        try:
+            self.query_one("#button-row").display = True
+        except Exception:
+            pass
+        self._set_status("NIC 선택 + 태그 입력  ·  Ctrl+S=Apply  ·  F3=Default  ·  ✕=행 삭제")
+
+        # remove_children() 는 비동기 → 제거 완료 후 build (동일 id 중복 방지)
+        scroll = self.query_one("#form-scroll")
+        scroll.remove_children()
+        self.call_after_refresh(self._build_capture_body, pairs)
+
+    def _build_capture_body(self, pairs=None) -> None:
+        # _cap_seq 는 화면 수명 동안 단조 증가 (재렌더 시 비동기 제거 중인
+        # 기존 행과 id 충돌 방지). 상태 dict 는 매 build 마다 새로 구성.
+        if not hasattr(self, "_cap_seq"):
+            self._cap_seq = 0
+        self._cap_state = {}   # row_id -> {"cands": [nic...], "iface": str}
+        scroll = self.query_one("#form-scroll")
+
+        scroll.mount(Static(
+            "[bright_black]캡처 대상 NIC 을 선택하고 태그를 입력한 뒤 Ctrl+S. "
+            "상세 형식은 config.ini 에 자동 반영됩니다.[/]",
+            classes="section-desc",
+        ))
+        scroll.mount(Static(
+            "[#8b98a5]  Interface (NIC)              Tag[/]",
+            classes="cap-header",
+        ))
+
+        self._cap_nics = self._discover_capture_nics()
+
+        if pairs is None:
+            pairs = self._parse_capture_pairs()
+        if not pairs:
+            pairs = [("", "")]
+        for iface, tag in pairs:
+            self._mount_capture_row(iface, tag)
+
+        scroll.mount(Button("+ Add Interface", id="cap-add", classes="cap-add-btn"))
+
+    def _discover_capture_nics(self) -> list:
+        """캡처 후보 NIC 목록(가상 인터페이스 제외)."""
+        names: list = []
+        try:
+            nm = getattr(self.app, "network_mgmt", None)
+            if nm:
+                nm.discover_interfaces()
+                skip = ("lo", "docker", "veth", "br-", "virbr", "vnet")
+                names = [i.name for i in nm.interfaces
+                         if not i.name.startswith(skip)]
+        except Exception as e:
+            self.log.warning(f"NIC discover failed: {e}")
+        return names
+
+    def _parse_capture_pairs(self) -> list:
+        """config.ini 의 interface/interfaceOps 를 (iface, tag) 쌍으로 파싱."""
+        data = self._read_ini_section()
+        ifaces = [s.strip() for s in data.get("interface", "").split(";") if s.strip()]
+        ops    = [s.strip() for s in data.get("interfaceOps", "").split(";")]
+        pairs = []
+        for idx, iface in enumerate(ifaces):
+            op = ops[idx] if idx < len(ops) else ""
+            tag = op[len("tags="):] if op.startswith("tags=") else op
+            pairs.append((iface, tag))
+        return pairs
+
+    def _cap_iface_label(self, iface: str) -> str:
+        """인터페이스 선택 버튼 라벨 (▾ = 눌러서 다음 NIC 로 변경)."""
+        return f"{iface}  ▾" if iface else "( NIC 선택 )  ▾"
+
+    def _mount_capture_row(self, iface: str, tag: str) -> None:
+        """(iface 선택 버튼 + tag 입력 + 삭제) 한 행을 form-scroll 에 추가.
+
+        인터페이스는 발견된 NIC 목록을 순환 선택하는 버튼으로 구현한다
+        (Select 드롭다운은 동적 마운트 시 오버레이 초기화 레이스로 불안정).
+        """
+        i = self._cap_seq
+        self._cap_seq += 1
+
+        cands = list(self._cap_nics)
+        # 현재 설정값이 발견 목록에 없어도 보존(다운/이름변경 NIC)
+        if iface and iface not in cands:
+            cands = [iface] + cands
+        self._cap_state[str(i)] = {"cands": cands, "iface": iface}
+
+        if_btn = Button(self._cap_iface_label(iface),
+                        id=f"cap-if-{i}", classes="cap-if")
+        tag_inp = Input(
+            value=tag,
+            placeholder="Net-1",
+            id=f"cap-tag-{i}",
+            classes="cap-tag",
+            compact=True,
+        )
+        rm = Button("✕", id=f"cap-rm-{i}", classes="cap-rm")
+        row = Horizontal(if_btn, tag_inp, rm, id=f"cap-row-{i}", classes="cap-row")
+
+        scroll = self.query_one("#form-scroll")
+        try:
+            add_btn = self.query_one("#cap-add", Button)
+            scroll.mount(row, before=add_btn)
+        except Exception:
+            scroll.mount(row)
+
+    def _cap_cycle_iface(self, bid: str) -> None:
+        """인터페이스 선택 버튼: 다음 NIC 로 순환."""
+        rid = bid[len("cap-if-"):]
+        st = self._cap_state.get(rid)
+        if not st or not st["cands"]:
+            self.app.notify("발견된 NIC 이 없습니다", severity="warning")
+            return
+        cands = st["cands"]
+        try:
+            idx = cands.index(st["iface"])
+        except ValueError:
+            idx = -1
+        st["iface"] = cands[(idx + 1) % len(cands)]
+        try:
+            self.query_one(f"#{bid}", Button).label = self._cap_iface_label(st["iface"])
+        except Exception:
+            pass
+
+    def _collect_capture_values(self):
+        """행들을 수집해 {interface, interfaceOps} 반환. 검증 실패 시 None."""
+        ifaces: list = []
+        tags: list = []
+        for row in self.query("#form-scroll .cap-row"):
+            rid = (row.id or "")[len("cap-row-"):]
+            iface = self._cap_state.get(rid, {}).get("iface", "")
+            if not iface:
+                continue
+            try:
+                tag_inp = row.query_one(Input)
+            except Exception:
+                continue
+            tag = tag_inp.value.strip()
+            if not tag:
+                self.app.notify(f"{iface}: 태그를 입력하세요", severity="error")
+                self._set_status(f"{iface}: 태그 필요", error=True)
+                return None
+            if iface in ifaces:
+                self.app.notify(f"인터페이스 중복: {iface}", severity="error")
+                self._set_status(f"중복: {iface}", error=True)
+                return None
+            ifaces.append(iface)
+            tags.append(tag)
+
+        if not ifaces:
+            self.app.notify("최소 1개 인터페이스를 선택하세요", severity="error")
+            self._set_status("인터페이스 없음", error=True)
+            return None
+
+        # interfaceOps 의 tags= 접두어는 _save_ini_section 이 자동 부착
+        return {"interface": ";".join(ifaces), "interfaceOps": ";".join(tags)}
 
     # ── Disk Perf Test UI ─────────────────────────────────────────────────────
 
@@ -2045,6 +2293,20 @@ class MnxConfigScreen(BaseScreen):
         if bid == "btn-cancel":
             self.action_cancel()
             return
+        # Capture 배열 에디터: NIC 순환 / 행 추가·삭제
+        if bid and bid.startswith("cap-if-"):
+            self._cap_cycle_iface(bid)
+            return
+        if bid == "cap-add":
+            self._mount_capture_row("", "")
+            return
+        if bid and bid.startswith("cap-rm-"):
+            row_id = bid[len("cap-rm-"):]
+            try:
+                self.query_one(f"#cap-row-{row_id}", Horizontal).remove()
+            except Exception:
+                pass
+            return
         # System Power buttons
         if self._current_section == "sys_power":
             self._power_handle_button(bid)
@@ -2064,7 +2326,12 @@ class MnxConfigScreen(BaseScreen):
         if self._current_section.startswith("fw_"):
             self._ufw_execute_pending()
             return
-        values = self._get_form_values()
+        if self._current_section == "capture":
+            values = self._collect_capture_values()
+            if values is None:
+                return
+        else:
+            values = self._get_form_values()
         title  = SECTION_TITLES.get(self._current_section, self._current_section)
         if self._save_section(self._current_section, values):
             self._set_status(f"Saved: {title}")
@@ -2077,6 +2344,18 @@ class MnxConfigScreen(BaseScreen):
             self.app.notify("Select a section first", severity="warning")
             return
         if self._current_section in ("disk_perf", "sys_power"):
+            return
+        if self._current_section == "capture":
+            di = [s.strip() for s in DEFAULTS["capture"]["interface"].split(";") if s.strip()]
+            do = [s.strip() for s in DEFAULTS["capture"]["interfaceOps"].split(";")]
+            pairs = []
+            for idx, iface in enumerate(di):
+                op = do[idx] if idx < len(do) else ""
+                tag = op[len("tags="):] if op.startswith("tags=") else op
+                pairs.append((iface, tag))
+            self._show_capture_section(pairs=pairs)
+            self._set_status("기본값으로 초기화 — Ctrl+S 로 저장")
+            self.app.notify("기본값으로 초기화. Ctrl+S 로 저장.", title="Set Default")
             return
         scroll = self.query_one("#form-scroll")
         for field_key in self._field_keys:
