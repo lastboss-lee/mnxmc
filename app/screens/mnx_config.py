@@ -361,14 +361,7 @@ class MnxConfigScreen(BaseScreen):
         background: #0c0c0c;
     }
 
-    /* ── Capture 인터페이스 배열 에디터 ── */
-    .cap-header {
-        width: 100%;
-        height: 1;
-        margin-top: 1;
-        background: #0c0c0c;
-    }
-
+    /* ── Capture 인터페이스/태그 에디터 ── */
     .cap-row {
         width: 100%;
         height: 1;
@@ -376,23 +369,46 @@ class MnxConfigScreen(BaseScreen):
         background: #0c0c0c;
     }
 
-    .cap-if {
-        width: 28;
-        height: 1 !important;
-        border: none !important;
-        background: #111820;
+    .cap-ifname {
+        width: 14;
+        height: 1;
         color: #87d7ff;
         content-align: left middle;
+        padding: 0 1;
+        background: #0c0c0c;
+    }
+
+    /* 태그 칩 (선택=배경색으로 표시 — 폭 안정 기호 미사용) */
+    .cap-chip {
+        width: auto;
+        min-width: 9;
+        height: 1 !important;
+        border: none !important;
+        background: #12181f;
+        color: #8b98a5;
+        content-align: center middle;
         padding: 0 1;
         margin: 0 1 0 0;
         text-style: none !important;
     }
 
-    .cap-if:hover { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
-    .cap-if:focus { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
+    .cap-chip:hover { background: #1c2530 !important; color: #e6edf3; text-style: bold !important; }
+    .cap-chip:focus { background: #1c2530 !important; color: #e6edf3; text-style: bold !important; }
 
-    .cap-tag {
-        width: 18;
+    .cap-chip.chip-on        { background: #00aeef !important; color: #04141b !important; text-style: bold !important; }
+    .cap-chip.chip-on:hover  { background: #33c9ff !important; color: #04141b !important; text-style: bold !important; }
+    .cap-chip.chip-on:focus  { background: #33c9ff !important; color: #04141b !important; text-style: bold !important; }
+
+    .cap-addtag-row {
+        width: 100%;
+        height: 1;
+        layout: horizontal;
+        margin-top: 1;
+        background: #0c0c0c;
+    }
+
+    .cap-newtag {
+        width: 22;
         height: 1 !important;
         border: none !important;
         background: #111820;
@@ -401,41 +417,20 @@ class MnxConfigScreen(BaseScreen):
         margin: 0 1 0 0;
     }
 
-    .cap-tag:focus {
-        height: 1 !important;
-        border: none !important;
-        background: #111820;
-        color: #87ffff;
-    }
+    .cap-newtag:focus { height: 1 !important; border: none !important; background: #111820; color: #87ffff; }
 
-    .cap-rm {
-        width: 3;
-        min-width: 3;
-        height: 1 !important;
-        border: none !important;
-        background: transparent;
-        color: #ff5555;
-        content-align: center middle;
-        padding: 0;
-        text-style: none !important;
-    }
-
-    .cap-rm:hover  { background: #3a1a1a !important; text-style: bold !important; }
-    .cap-rm:focus  { background: #3a1a1a !important; color: #ff5555; text-style: bold !important; }
-
-    .cap-add-btn {
+    .cap-addtag-btn {
         width: auto;
         height: 1 !important;
         border: none !important;
         background: transparent;
         color: #5fd7d7;
         padding: 0 1;
-        margin: 1 0 0 0;
         text-style: none !important;
     }
 
-    .cap-add-btn:hover { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
-    .cap-add-btn:focus { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
+    .cap-addtag-btn:hover { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
+    .cap-addtag-btn:focus { background: #1c2530 !important; color: #87ffff; text-style: bold !important; }
 
     .field-input {
         width: 1fr;
@@ -954,41 +949,15 @@ class MnxConfigScreen(BaseScreen):
             self.query_one("#button-row").display = True
         except Exception:
             pass
-        self._set_status("NIC 선택 + 태그 입력  ·  Ctrl+S=Apply  ·  F3=Default  ·  ✕=행 삭제")
+        self._set_status("인터페이스별 Net 태그 선택/해제  ·  Ctrl+S=Apply  ·  F3=Default")
 
-        # remove_children() 는 비동기 → 제거 완료 후 build (동일 id 중복 방지)
+        # 상태 로드 후, 렌더 세대(gen) 증가 — 비동기 제거 중 잔존 위젯과 id 충돌 방지
+        self._cap_load_state(pairs)
+        self._cap_gen = getattr(self, "_cap_gen", 0) + 1
+
         scroll = self.query_one("#form-scroll")
         scroll.remove_children()
-        self.call_after_refresh(self._build_capture_body, pairs)
-
-    def _build_capture_body(self, pairs=None) -> None:
-        # _cap_seq 는 화면 수명 동안 단조 증가 (재렌더 시 비동기 제거 중인
-        # 기존 행과 id 충돌 방지). 상태 dict 는 매 build 마다 새로 구성.
-        if not hasattr(self, "_cap_seq"):
-            self._cap_seq = 0
-        self._cap_state = {}   # row_id -> {"cands": [nic...], "iface": str}
-        scroll = self.query_one("#form-scroll")
-
-        scroll.mount(Static(
-            "[bright_black]캡처 대상 NIC 을 선택하고 태그를 입력한 뒤 Ctrl+S. "
-            "상세 형식은 config.ini 에 자동 반영됩니다.[/]",
-            classes="section-desc",
-        ))
-        scroll.mount(Static(
-            "[#8b98a5]  Interface (NIC)              Tag[/]",
-            classes="cap-header",
-        ))
-
-        self._cap_nics = self._discover_capture_nics()
-
-        if pairs is None:
-            pairs = self._parse_capture_pairs()
-        if not pairs:
-            pairs = [("", "")]
-        for iface, tag in pairs:
-            self._mount_capture_row(iface, tag)
-
-        scroll.mount(Button("+ Add Interface", id="cap-add", classes="cap-add-btn"))
+        self.call_after_refresh(self._render_capture_rows)
 
     def _discover_capture_nics(self) -> list:
         """캡처 후보 NIC 목록(가상 인터페이스 제외)."""
@@ -1016,92 +985,128 @@ class MnxConfigScreen(BaseScreen):
             pairs.append((iface, tag))
         return pairs
 
-    def _cap_iface_label(self, iface: str) -> str:
-        """인터페이스 선택 버튼 라벨 (▾ = 눌러서 다음 NIC 로 변경)."""
-        return f"{iface}  ▾" if iface else "( NIC 선택 )  ▾"
+    _CAP_BASE_TAGS = ["Net-1", "Net-2", "Net-3", "Net-4"]
 
-    def _mount_capture_row(self, iface: str, tag: str) -> None:
-        """(iface 선택 버튼 + tag 입력 + 삭제) 한 행을 form-scroll 에 추가.
+    def _cap_load_state(self, pairs=None) -> None:
+        """발견 NIC + 설정값으로 인터페이스 목록·선택 상태·태그 후보 구성."""
+        nics = self._discover_capture_nics()
+        file_pairs = pairs if pairs is not None else self._parse_capture_pairs()
 
-        인터페이스는 발견된 NIC 목록을 순환 선택하는 버튼으로 구현한다
-        (Select 드롭다운은 동적 마운트 시 오버레이 초기화 레이스로 불안정).
-        """
-        i = self._cap_seq
-        self._cap_seq += 1
-
-        cands = list(self._cap_nics)
-        # 현재 설정값이 발견 목록에 없어도 보존(다운/이름변경 NIC)
-        if iface and iface not in cands:
-            cands = [iface] + cands
-        self._cap_state[str(i)] = {"cands": cands, "iface": iface}
-
-        if_btn = Button(self._cap_iface_label(iface),
-                        id=f"cap-if-{i}", classes="cap-if")
-        tag_inp = Input(
-            value=tag,
-            placeholder="Net-1",
-            id=f"cap-tag-{i}",
-            classes="cap-tag",
-            compact=True,
-        )
-        rm = Button("✕", id=f"cap-rm-{i}", classes="cap-rm")
-        row = Horizontal(if_btn, tag_inp, rm, id=f"cap-row-{i}", classes="cap-row")
-
-        scroll = self.query_one("#form-scroll")
-        try:
-            add_btn = self.query_one("#cap-add", Button)
-            scroll.mount(row, before=add_btn)
-        except Exception:
-            scroll.mount(row)
-
-    def _cap_cycle_iface(self, bid: str) -> None:
-        """인터페이스 선택 버튼: 다음 NIC 로 순환."""
-        rid = bid[len("cap-if-"):]
-        st = self._cap_state.get(rid)
-        if not st or not st["cands"]:
-            self.app.notify("발견된 NIC 이 없습니다", severity="warning")
-            return
-        cands = st["cands"]
-        try:
-            idx = cands.index(st["iface"])
-        except ValueError:
-            idx = -1
-        st["iface"] = cands[(idx + 1) % len(cands)]
-        try:
-            self.query_one(f"#{bid}", Button).label = self._cap_iface_label(st["iface"])
-        except Exception:
-            pass
-
-    def _collect_capture_values(self):
-        """행들을 수집해 {interface, interfaceOps} 반환. 검증 실패 시 None."""
+        # 인터페이스 순서: 설정에 있던 것(설정 순서) 먼저 → 미설정 발견 NIC
         ifaces: list = []
-        tags: list = []
-        for row in self.query("#form-scroll .cap-row"):
-            rid = (row.id or "")[len("cap-row-"):]
-            iface = self._cap_state.get(rid, {}).get("iface", "")
-            if not iface:
-                continue
+        for iface, _t in file_pairs:
+            if iface and iface not in ifaces:
+                ifaces.append(iface)
+        for n in nics:
+            if n not in ifaces:
+                ifaces.append(n)
+        self._cap_ifaces = ifaces
+
+        # 선택 상태 (인터페이스당 태그 1개 또는 None)
+        self._cap_sel = {i: None for i in ifaces}
+        for iface, t in file_pairs:
+            if iface and t:
+                self._cap_sel[iface] = t
+
+        # 태그 후보: 기본 Net-1~4 + 설정에 존재하던 태그
+        tags = list(self._CAP_BASE_TAGS)
+        for _iface, t in file_pairs:
+            if t and t not in tags:
+                tags.append(t)
+        self._cap_tags = tags
+
+    def _render_capture_rows(self) -> None:
+        gen = self._cap_gen
+        scroll = self.query_one("#form-scroll")
+
+        scroll.mount(Static(
+            "[bright_black]각 인터페이스에 캡처 태그(Net-*)를 선택하세요. "
+            "미선택 인터페이스 = 캡처 제외. 저장 시 config.ini 에 자동 반영됩니다.[/]",
+            classes="section-desc",
+        ))
+
+        if not self._cap_ifaces:
+            scroll.mount(Static("[#d29922]발견된 인터페이스가 없습니다.[/]"))
+            return
+
+        for r, iface in enumerate(self._cap_ifaces):
+            sel = self._cap_sel.get(iface)
+            children = [Static(iface, classes="cap-ifname")]
+            for t, tag in enumerate(self._cap_tags):
+                chip = Button(tag, id=f"cap{gen}-chip-{r}-{t}", classes="cap-chip")
+                if tag == sel:
+                    chip.add_class("chip-on")
+                children.append(chip)
+            scroll.mount(Horizontal(*children, id=f"cap{gen}-row-{r}", classes="cap-row"))
+
+        # 태그 후보 추가 행
+        scroll.mount(Horizontal(
+            Input(placeholder="새 태그명 (예: Net-5)", id=f"cap{gen}-newtag",
+                  classes="cap-newtag", compact=True),
+            Button("+ Add Tag", id=f"cap{gen}-addtag", classes="cap-addtag-btn"),
+            classes="cap-addtag-row",
+        ))
+
+    def _cap_toggle_chip(self, r: int, t: int) -> None:
+        """인터페이스 r 의 태그 t 선택/해제 (단일 선택: 다른 태그는 자동 해제)."""
+        try:
+            iface = self._cap_ifaces[r]
+            tag = self._cap_tags[t]
+        except IndexError:
+            return
+        self._cap_sel[iface] = None if self._cap_sel.get(iface) == tag else tag
+        self._cap_refresh_row(r)
+
+    def _cap_refresh_row(self, r: int) -> None:
+        gen = self._cap_gen
+        iface = self._cap_ifaces[r]
+        sel = self._cap_sel.get(iface)
+        for t, tag in enumerate(self._cap_tags):
             try:
-                tag_inp = row.query_one(Input)
+                chip = self.query_one(f"#cap{gen}-chip-{r}-{t}", Button)
             except Exception:
                 continue
-            tag = tag_inp.value.strip()
-            if not tag:
-                self.app.notify(f"{iface}: 태그를 입력하세요", severity="error")
-                self._set_status(f"{iface}: 태그 필요", error=True)
-                return None
-            if iface in ifaces:
-                self.app.notify(f"인터페이스 중복: {iface}", severity="error")
-                self._set_status(f"중복: {iface}", error=True)
-                return None
-            ifaces.append(iface)
-            tags.append(tag)
+            chip.set_class(tag == sel, "chip-on")
 
+    def _cap_add_tag(self) -> None:
+        """새 태그 후보를 추가(모든 인터페이스 행에 칩 추가)."""
+        gen = self._cap_gen
+        try:
+            inp = self.query_one(f"#cap{gen}-newtag", Input)
+        except Exception:
+            return
+        name = inp.value.strip()
+        if not name:
+            return
+        if name in self._cap_tags:
+            self.app.notify(f"이미 있는 태그: {name}", severity="warning")
+            return
+        self._cap_tags.append(name)
+        t = len(self._cap_tags) - 1
+        for r, iface in enumerate(self._cap_ifaces):
+            try:
+                row = self.query_one(f"#cap{gen}-row-{r}", Horizontal)
+            except Exception:
+                continue
+            chip = Button(name, id=f"cap{gen}-chip-{r}-{t}", classes="cap-chip")
+            if self._cap_sel.get(iface) == name:
+                chip.add_class("chip-on")
+            row.mount(chip)
+        inp.value = ""
+
+    def _collect_capture_values(self):
+        """선택 상태를 {interface, interfaceOps} 로 직렬화. 검증 실패 시 None."""
+        ifaces: list = []
+        tags: list = []
+        for iface in self._cap_ifaces:
+            sel = self._cap_sel.get(iface)
+            if sel:
+                ifaces.append(iface)
+                tags.append(sel)
         if not ifaces:
-            self.app.notify("최소 1개 인터페이스를 선택하세요", severity="error")
-            self._set_status("인터페이스 없음", error=True)
+            self.app.notify("최소 1개 인터페이스에 태그를 선택하세요", severity="error")
+            self._set_status("선택된 인터페이스 없음", error=True)
             return None
-
         # interfaceOps 의 tags= 접두어는 _save_ini_section 이 자동 부착
         return {"interface": ";".join(ifaces), "interfaceOps": ";".join(tags)}
 
@@ -2293,19 +2298,16 @@ class MnxConfigScreen(BaseScreen):
         if bid == "btn-cancel":
             self.action_cancel()
             return
-        # Capture 배열 에디터: NIC 순환 / 행 추가·삭제
-        if bid and bid.startswith("cap-if-"):
-            self._cap_cycle_iface(bid)
-            return
-        if bid == "cap-add":
-            self._mount_capture_row("", "")
-            return
-        if bid and bid.startswith("cap-rm-"):
-            row_id = bid[len("cap-rm-"):]
+        # Capture 태그 에디터: 칩 토글 / 태그 추가
+        if bid and "-chip-" in bid:
             try:
-                self.query_one(f"#cap-row-{row_id}", Horizontal).remove()
+                r_s, t_s = bid.split("-chip-", 1)[1].split("-")
+                self._cap_toggle_chip(int(r_s), int(t_s))
             except Exception:
                 pass
+            return
+        if bid and bid.endswith("-addtag"):
+            self._cap_add_tag()
             return
         # System Power buttons
         if self._current_section == "sys_power":
