@@ -125,9 +125,9 @@ Sidebar ListView:focus > ListItem.-highlight {
 AppFooter {
     height: 1;
     width: 100%;
-    background: #11161d;
+    background: #11161d;   /* 배경색으로 콘텐츠와 구분 (border-top 제거 —
+                              height 1 에서 border 가 콘텐츠 행을 삼켜 텍스트가 안 보였음) */
     color: #8b98a5;
-    border-top: solid #2a3440;
     padding: 0 1;
 }
 
