@@ -399,6 +399,26 @@ class MnxConfigScreen(BaseScreen):
     .cap-chip.chip-on:hover  { background: #33c9ff !important; color: #04141b !important; text-style: bold !important; }
     .cap-chip.chip-on:focus  { background: #33c9ff !important; color: #04141b !important; text-style: bold !important; }
 
+    /* None(미설정) 칩: 선택 시 회색(제외 의미) — 태그(시안)와 구분 */
+    .cap-chip-none.chip-on        { background: #3a4654 !important; color: #e6edf3 !important; }
+    .cap-chip-none.chip-on:hover  { background: #46586a !important; color: #e6edf3 !important; }
+    .cap-chip-none.chip-on:focus  { background: #46586a !important; color: #e6edf3 !important; }
+
+    /* 현재 config.ini 값 (읽기전용) */
+    .cap-current-hdr {
+        width: 100%;
+        height: 1;
+        margin-top: 1;
+        background: #0c0c0c;
+    }
+
+    .cap-current {
+        width: 100%;
+        height: 1;
+        background: #0c0c0c;
+        padding: 0 1;
+    }
+
     .cap-addtag-row {
         width: 100%;
         height: 1;
@@ -1032,6 +1052,12 @@ class MnxConfigScreen(BaseScreen):
         for r, iface in enumerate(self._cap_ifaces):
             sel = self._cap_sel.get(iface)
             children = [Static(iface, classes="cap-ifname")]
+            # None(미설정) 칩 — 선택 시 캡처에서 제외
+            none_chip = Button("None", id=f"cap{gen}-none-{r}",
+                               classes="cap-chip cap-chip-none")
+            if sel is None:
+                none_chip.add_class("chip-on")
+            children.append(none_chip)
             for t, tag in enumerate(self._cap_tags):
                 chip = Button(tag, id=f"cap{gen}-chip-{r}-{t}", classes="cap-chip")
                 if tag == sel:
@@ -1047,26 +1073,66 @@ class MnxConfigScreen(BaseScreen):
             classes="cap-addtag-row",
         ))
 
+        # 현재 config.ini 값 (읽기전용) 표시
+        data = self._read_ini_section()
+        cur_if  = markup_escape(data.get("interface", "") or "(none)")
+        cur_ops = markup_escape(data.get("interfaceOps", "") or "(none)")
+        scroll.mount(Static("[#8b98a5]── Current (config.ini) ──[/]", classes="cap-current-hdr"))
+        scroll.mount(Static(f"[bright_black]interface    = {cur_if}[/]",
+                            id=f"cap{gen}-cur-if", classes="cap-current"))
+        scroll.mount(Static(f"[bright_black]interfaceOps = {cur_ops}[/]",
+                            id=f"cap{gen}-cur-ops", classes="cap-current"))
+
     def _cap_toggle_chip(self, r: int, t: int) -> None:
-        """인터페이스 r 의 태그 t 선택/해제 (단일 선택: 다른 태그는 자동 해제)."""
+        """인터페이스 r 에 태그 t 선택 (단일 선택 — 다른 칩은 자동 해제)."""
         try:
             iface = self._cap_ifaces[r]
             tag = self._cap_tags[t]
         except IndexError:
             return
-        self._cap_sel[iface] = None if self._cap_sel.get(iface) == tag else tag
+        self._cap_sel[iface] = tag
+        self._cap_refresh_row(r)
+
+    def _cap_select_none(self, r: int) -> None:
+        """인터페이스 r 을 None(미설정 = 캡처 제외)으로 설정."""
+        try:
+            iface = self._cap_ifaces[r]
+        except IndexError:
+            return
+        self._cap_sel[iface] = None
         self._cap_refresh_row(r)
 
     def _cap_refresh_row(self, r: int) -> None:
         gen = self._cap_gen
         iface = self._cap_ifaces[r]
         sel = self._cap_sel.get(iface)
+        try:
+            self.query_one(f"#cap{gen}-none-{r}", Button).set_class(sel is None, "chip-on")
+        except Exception:
+            pass
         for t, tag in enumerate(self._cap_tags):
             try:
                 chip = self.query_one(f"#cap{gen}-chip-{r}-{t}", Button)
             except Exception:
                 continue
             chip.set_class(tag == sel, "chip-on")
+
+    def _cap_update_current(self) -> None:
+        """하단 'Current (config.ini)' 표시를 파일 현재값으로 갱신."""
+        gen = getattr(self, "_cap_gen", 0)
+        data = self._read_ini_section()
+        cur_if  = markup_escape(data.get("interface", "") or "(none)")
+        cur_ops = markup_escape(data.get("interfaceOps", "") or "(none)")
+        try:
+            self.query_one(f"#cap{gen}-cur-if", Static).update(
+                f"[bright_black]interface    = {cur_if}[/]")
+        except Exception:
+            pass
+        try:
+            self.query_one(f"#cap{gen}-cur-ops", Static).update(
+                f"[bright_black]interfaceOps = {cur_ops}[/]")
+        except Exception:
+            pass
 
     def _cap_add_tag(self) -> None:
         """새 태그 후보를 추가(모든 인터페이스 행에 칩 추가)."""
@@ -2298,7 +2364,13 @@ class MnxConfigScreen(BaseScreen):
         if bid == "btn-cancel":
             self.action_cancel()
             return
-        # Capture 태그 에디터: 칩 토글 / 태그 추가
+        # Capture 태그 에디터: None / 칩 토글 / 태그 추가
+        if bid and "-none-" in bid:
+            try:
+                self._cap_select_none(int(bid.split("-none-", 1)[1]))
+            except Exception:
+                pass
+            return
         if bid and "-chip-" in bid:
             try:
                 r_s, t_s = bid.split("-chip-", 1)[1].split("-")
@@ -2338,6 +2410,8 @@ class MnxConfigScreen(BaseScreen):
         if self._save_section(self._current_section, values):
             self._set_status(f"Saved: {title}")
             self.app.notify(f"Config saved: {title}", title="Saved")
+            if self._current_section == "capture":
+                self._cap_update_current()
         else:
             self._set_status(f"Save failed: {title}", error=True)
 
