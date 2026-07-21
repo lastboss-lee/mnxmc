@@ -50,6 +50,11 @@ Sidebar {
     overflow-y: auto;
 }
 
+/* 포커스 표시: 활성 패널의 경계선을 Primary(시안)로 강조 */
+Sidebar:focus-within {
+    border-right: solid #00aeef;   /* 메뉴가 활성일 때 */
+}
+
 Sidebar .nav-category {
     color: #8b98a5;           /* Color.TEXT_MUTED */
     text-style: bold;
@@ -86,9 +91,15 @@ Sidebar ListItem:hover {
     background: #1c2530;      /* Color.HOVER */
 }
 
-Sidebar ListItem.-highlight,
+/* 커서 하이라이트: 사이드바가 포커스 아닐 때는 흐리게(비활성 표시),
+   포커스일 때는 Primary 시안으로 선명하게 → 어느 패널이 활성인지 구분 */
+Sidebar ListItem.-highlight {
+    background: #263341;      /* 비활성(메뉴 포커스 아님): 흐린 강조 */
+    color: #c8d3de;
+}
+
 Sidebar ListView:focus > ListItem.-highlight {
-    background: #00aeef;      /* Color.SELECTED_BG */
+    background: #00aeef;      /* 활성(메뉴 포커스): 선명한 강조 */
     color: #04141b;           /* Color.SELECTED_FG */
     text-style: bold;
 }
@@ -101,6 +112,12 @@ Sidebar ListView:focus > ListItem.-highlight {
     background: #0b0f14;
     padding: 1 2;
     overflow-y: auto;
+    border-left: solid #0b0f14;    /* 기본: 배경색과 동일 → 안 보임(폭만 확보) */
+}
+
+/* 콘텐츠(우측)가 활성일 때 좌측 경계선을 Primary 로 강조 */
+#content:focus-within {
+    border-left: solid #00aeef;
 }
 
 /* ── Footer (Function Key, 항상 동일, 고정 높이 1) ────────────────────── */
