@@ -150,20 +150,33 @@ DEFAULT_FOOTER_KEYS: list[tuple[str, str]] = [
 
 
 class AppFooter(Static):
-    """공통 푸터. 기능키를 통일된 스타일로 표시한다."""
+    """공통 푸터. 활성 패널 방향(◀ MENU / CONTENT ▶) + 기능키를 표시한다."""
+
+    # "menu" | "content" | ""  — 현재 키보드 포커스가 있는 패널
+    focus_side: reactive[str] = reactive("")
 
     def __init__(self, keys: Optional[list[tuple[str, str]]] = None, **kwargs) -> None:
         super().__init__("", **kwargs)
         self._keys = keys if keys is not None else DEFAULT_FOOTER_KEYS
 
-    def on_mount(self) -> None:
+    def render(self) -> Text:
         text = Text()
+
+        # ── 활성 패널 방향 표시 (활성 쪽만 Primary 로 강조) ──
+        on = f"bold {Color.SELECTED_FG} on {Color.PRIMARY}"
+        off = Color.TEXT_FAINT
+        text.append(" ◀ MENU ",   style=on if self.focus_side == "menu" else off)
+        text.append(" ")
+        text.append(" CONTENT ▶ ", style=on if self.focus_side == "content" else off)
+        text.append(f"   {Glyph.V_LINE}   ", style=Color.BORDER)
+
+        # ── 기능키 ──
         for i, (key, label) in enumerate(self._keys):
             if i:
                 text.append("  ")
             text.append(f" {key} ", style=f"bold {Color.SELECTED_FG} on {Color.PRIMARY}")
             text.append(f" {label}", style=Color.TEXT_MUTED)
-        self.update(text)
+        return text
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -294,6 +307,30 @@ class BaseScreen(Screen):
     def compose_content(self) -> ComposeResult:
         """서브클래스가 본문 위젯을 반환하도록 재정의한다."""
         return iter(())
+
+    # ── 활성 패널(포커스) 방향 표시 ──────────────────────────────────────
+    def on_descendant_focus(self, event) -> None:
+        self._update_focus_indicator()
+
+    def on_descendant_blur(self, event) -> None:
+        self.call_after_refresh(self._update_focus_indicator)
+
+    def _update_focus_indicator(self) -> None:
+        """현재 포커스가 사이드바/콘텐츠 중 어디인지 계산해 푸터에 반영."""
+        node = self.focused
+        side = ""
+        while node is not None:
+            if isinstance(node, Sidebar):
+                side = "menu"
+                break
+            if getattr(node, "id", None) == "content":
+                side = "content"
+                break
+            node = getattr(node, "parent", None)
+        try:
+            self.query_one(AppFooter).focus_side = side
+        except Exception:
+            pass
 
     # ── 헤더 상태 갱신 헬퍼 ──────────────────────────────────────────────
     def update_header(self, **kwargs) -> None:
