@@ -134,21 +134,27 @@ class NetworkConfigModal(ModalScreen[dict]):
         content-align: left middle;
     }
 
+    /* Textual Input 은 focus 시 tall 테두리가 생겨 3줄로 커진다.
+       !important 로 테두리 제거·높이 1 고정하여 항상 한 줄 입력란으로 유지. */
     .field-input {
         width: 1fr;
-        height: 1;
-        border: none;
+        height: 1 !important;
+        border: none !important;
         background: #0b0f14;
         color: #e6edf3;
         padding: 0 1;
     }
 
     .field-input:focus {
+        height: 1 !important;
+        border: none !important;
         background: #0b0f14;
         color: #33c9ff;
     }
 
     .field-input:disabled {
+        height: 1 !important;
+        border: none !important;
         color: #5a6673;
         background: #0d1219;
     }
@@ -300,6 +306,7 @@ class NetworkConfigModal(ModalScreen[dict]):
                     placeholder="192.168.1.100",
                     id="input-ip",
                     classes="field-input",
+                    compact=True,
                 )
             with Horizontal(classes="field-row"):
                 yield Static("Netmask:", classes="field-label")
@@ -308,6 +315,7 @@ class NetworkConfigModal(ModalScreen[dict]):
                     placeholder="255.255.255.0 or /24",
                     id="input-netmask",
                     classes="field-input",
+                    compact=True,
                 )
             with Horizontal(classes="field-row"):
                 yield Static("Gateway:", classes="field-label")
@@ -316,6 +324,7 @@ class NetworkConfigModal(ModalScreen[dict]):
                     placeholder="192.168.1.1",
                     id="input-gateway",
                     classes="field-input",
+                    compact=True,
                 )
             with Horizontal(classes="field-row"):
                 yield Static("DNS:", classes="field-label")
@@ -324,6 +333,7 @@ class NetworkConfigModal(ModalScreen[dict]):
                     placeholder="8.8.8.8, 8.8.4.4",
                     id="input-dns",
                     classes="field-input",
+                    compact=True,
                 )
 
             yield Static("", id="error-message")
