@@ -14,7 +14,7 @@ TTY1 콘솔 접속 시 로그인 화면 표시.
 - 로그인 시도 제한 및 잠금
 
 Author: MNX Team
-Version: 2.2.0
+Version: 2.3.0
 """
 
 import sys
@@ -272,7 +272,7 @@ def print_startup_banner():
     print("║   ██║ ╚═╝ ██║██║ ╚████║██╔╝ ██╗                            ║")
     print("║   ╚═╝     ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝                            ║")
     print("║                                                            ║")
-    print("║          MNX Management Console v2.2.0                     ║")
+    print("║          MNX Management Console v2.3.0                     ║")
     print("║          SANDSLAB Inc. NDR Solution                        ║")
     print("║                                                            ║")
     print("╚════════════════════════════════════════════════════════════╝")
