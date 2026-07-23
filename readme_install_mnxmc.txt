@@ -1,9 +1,31 @@
 ================================================================================
   MNXMC (MNX Management Console) 설치 및 운영 가이드
-  버전: 2.1.4
+  버전: 2.3.0
   작성: SANDS LAB Inc.
-  최종 업데이트: 2026-05-15
+  최종 업데이트: 2026-07-23
 ================================================================================
+
+  v2.3.0 변경 내역 (2026-07-23)
+  --------------------------------
+   1) UI 디자인 시스템 리팩토링 (Phase 1~27)
+      - app/ui/ 공통 컴포넌트(tokens/theme/widgets/screen) 기반 도입,
+        7개 화면(Dashboard/System/Performance/Config/Service/Network/
+        Log Monitor/Command Shell)을 공통 BaseScreen 4구획 골격으로 통일
+      - 카드 기반 System/Performance overview + MeterBar 임계값 색상 통일
+      - 헤더 Service/Alarm/Health 지시자 라이브화(app/ui/status.py)
+      - Config 설정페이지화 + Capture 인터페이스 태그 배열 에디터
+      - Network config 모달 재설계, active-pane 포커스/방향 지시자
+   2) 안정성/보안
+      - System/Dashboard 매초 수집을 스레드로 오프로드(블로킹 제거)
+      - utils/auth su fallback root 우회 차단
+   3) 데드코드 제거(미사용 위젯·도달불가 화면), 버전 문자열 전 파일 2.3.0 통일
+      - 설계 문서: docs/design/DESIGN_SYSTEM.md 참고
+
+  v2.2.0 변경 내역 (2026-06-04)
+  --------------------------------
+   1) Service Manager Elasticsearch 노드 분할
+      - 단일 ES 항목을 elasticsearch-node-1 / elasticsearch-node-2 로 분할 관리
+   2) 콘솔 버전 문자열 통일
 
   v2.1.4 변경 내역 (2026-05-15)
   --------------------------------

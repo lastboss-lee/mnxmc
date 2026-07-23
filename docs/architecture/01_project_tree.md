@@ -11,7 +11,7 @@
 | 항목 | 값 | 근거 |
 |---|---|---|
 | 제품 | MNX NDR (Network Detection & Response) 어플라이언스 | 디렉터리/서비스 전반 |
-| 관리 콘솔 버전 | **MNXMC v2.2.0** (deb 패키지 트랙) | `/mnxmc/.claude/CLAUDE.md`, `/data/mnxmc-2.2.0.deb` |
+| 관리 콘솔 버전 | **MNXMC v2.3.0** (deb 패키지 트랙) | `/mnxmc/.claude/CLAUDE.md`, `/data/mnxmc-2.3.0.deb` |
 | NDR 엔진(Web/API) 버전 | **Docker `v23.5.1.2`** (별도 트랙) | `docker images`: `mnx-api-v23`, `mnx-web-v23` |
 | 캡처 엔진 | **자체 캡처 엔진(패키지 버전 5.8.2)** | `/opt/mnx/include/mnxconfig.h:68` `PACKAGE_STRING "mnx 5.8.2"` |
 | DPI 엔진 | 자체 `mnxdpi` (PACE2/ipoque + PcapPlusPlus 임베드) | `strings /opt/mnxdpi/mnxdpi` |
@@ -46,7 +46,7 @@
 
 범례 — **중요도**: 필수(Critical)/높음/중간/낮음 · **실행**: 상시(데몬)/스케줄(cron)/온디맨드/컨테이너/미실행 · **사용**: 사용중/부분/미사용 · **DeadCode**: 예/아니오/부분
 
-### 3.1 `/mnxmc` — 관리 콘솔 (MNXMC v2.2.0, Python/Textual TUI)
+### 3.1 `/mnxmc` — 관리 콘솔 (MNXMC v2.3.0, Python/Textual TUI)
 
 ```
 /mnxmc
@@ -280,7 +280,7 @@
 
 | 항목 | 역할 | 근거 |
 |---|---|---|
-| `/data/mnxmc-{2.1.3,2.1.4,2.2.0}.deb` | 콘솔 설치 패키지(버전 이력) | `ls /data` |
+| `/data/mnxmc-{2.1.3,2.1.4,2.2.0,2.3.0}.deb` | 콘솔 설치 패키지(버전 이력) | `ls /data` |
 | `/home/sands/mnxmc_deb_build/` | deb 빌드 작업트리 | `find` |
 | `/mnxmc/packages/build_deb.sh`, `install_packages.sh` | 빌드/설치 스크립트 | 트리 |
 | `/mnxmc/readme_install_mnxmc.txt` | 설치/업그레이드 절차서 | 파일 |
