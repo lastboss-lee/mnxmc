@@ -10,7 +10,7 @@ Phase 1 에서는 이 골격을 제공만 하며, 기존 화면은 아직 이를
 (각 화면 마이그레이션은 Phase 2 이후 별도 commit 으로 진행)
 
 Author: MNX Team
-Version: 2.3.0
+Version: 2.3.1
 """
 
 from __future__ import annotations

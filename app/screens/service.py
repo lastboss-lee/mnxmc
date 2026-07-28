@@ -133,6 +133,12 @@ class ServiceScreen(BaseScreen):
         background: #0c0c0c;
     }
 
+    /* 긴 서비스명 줄바꿈 허용 — 항목 높이를 내용에 맞춰 가변으로.
+       (공통 Sidebar 는 건드리지 않도록 ServiceScreen 스코프로 한정) */
+    ServiceScreen Sidebar ListItem {
+        height: auto;
+    }
+
     /* ── 우측 패널 ── */
     #content-panel {
         width: 1fr;
@@ -236,12 +242,15 @@ class ServiceScreen(BaseScreen):
     SERVICES = [
         ("mnx_service_control.service", "mnx_service_control", "System Management"),
         ("eng_monitor.service",         "eng_monitor",         "Monitoring Service"),
+        ("mnx_regression_api.service",  "mnx_regression_api",  "Regression Analysis API"),
+        ("mnx-thirdparty.service",      "mnx-thirdparty",      "Thirdparty IP Block"),
         ("mnx_payload.service",         "mnx_payload",         "Payload Analysis"),
         ("mnx_payload_ai.service",      "mnx_payload_ai",      "AI Analysis"),
         ("mnx_payload_scan.service",    "mnx_payload_scan",    "Scan Engine"),
         ("mnxcapture.service",          "mnxcapture",          "Traffic Capture"),
         ("mnxdpi.service",              "mnxdpi",              "Deep Packet Inspection"),
         ("suricata.service",            "suricata",            "Network Security"),
+        ("elasticsearch.service",       "elasticsearch",       "Search Cluster (node 1+2)"),
         ("elasticsearch-node-1.service", "elasticsearch-node-1", "Search & Analytics (Node 1)"),
         ("elasticsearch-node-2.service", "elasticsearch-node-2", "Search & Analytics (Node 2)"),
         ("kafka.service",               "kafka",               "Message Queue"),
@@ -338,10 +347,11 @@ class ServiceScreen(BaseScreen):
             status = self._service_cache.get(svc, "unknown")
             color, symbol = self._status_icon(status)
             is_active = (not self._is_overview) and (self._current_svc == svc)
+            name = self._wrap_svc_name(short)
             if is_active:
-                sidebar.update_item_label(key, f"[cyan]▸[/] [{color}]{symbol}[/] {short}")
+                sidebar.update_item_label(key, f"[cyan]▸[/] [{color}]{symbol}[/] {name}")
             else:
-                sidebar.update_item_label(key, f"› [{color}]{symbol}[/] {short}")
+                sidebar.update_item_label(key, f"› [{color}]{symbol}[/] {name}")
 
     def on_nav_highlighted(self, item_id: str) -> None:
         """커서 이동 → 우측 패널 즉시 갱신 + Back/Overview 반전 효과."""
@@ -483,6 +493,30 @@ class ServiceScreen(BaseScreen):
             return "red", "○"
         else:
             return "yellow", "◐"
+
+    # 사이드바 폭 계산용 상수
+    # theme: Sidebar width 26 - border-right 1 - ListItem padding(2+2) = 21
+    _SIDEBAR_USABLE = 21
+    _LABEL_PREFIX   = 4           # "› ● " / "▸ ● " 가시 폭
+
+    def _wrap_svc_name(self, short: str) -> str:
+        """사이드바 폭을 넘는 서비스명을 2줄로 줄바꿈한다.
+
+        프리픽스(4칸) + 이름이 사용 가능 폭(22칸)을 넘으면 '_' 또는 '-'
+        구분점에서 잘라 둘째 줄을 이름 시작 위치(4칸 들여쓰기)에 맞춘다.
+        구분점이 없으면 예산 경계에서 강제 분할한다.
+        """
+        budget = self._SIDEBAR_USABLE - self._LABEL_PREFIX   # 첫 줄 이름 예산 = 18
+        if len(short) <= budget:
+            return short
+        cut = -1
+        for i in range(min(budget, len(short))):
+            if short[i] in "_-":
+                cut = i
+        if cut < 0:
+            cut = budget - 1                     # 구분점 없음 → 강제 분할
+        line1, line2 = short[:cut + 1], short[cut + 1:]
+        return f"{line1}\n    {line2}"           # 4칸 들여쓰기 = 이름 시작 정렬
 
     # ════════════════════════════════════════════════════════════════════════
     # 화면 갱신
@@ -849,6 +883,7 @@ class ServiceScreen(BaseScreen):
             "zookeeper.service", "kafka.service",
             "elasticsearch-node-1.service", "elasticsearch-node-2.service",
             "mnx_service_control.service", "eng_monitor.service",
+            "mnx_regression_api.service", "mnx-thirdparty.service",
             "mnx_payload.service", "mnxcapture.service", "mnxdpi.service",
             "suricata.service",
         ]
@@ -873,8 +908,9 @@ class ServiceScreen(BaseScreen):
         order = [
             "suricata.service", "mnxdpi.service", "mnxcapture.service",
             "mnx_payload.service", "mnx_payload_ai.service",
-            "mnx_payload_scan.service", "eng_monitor.service",
-            "mnx_service_control.service",
+            "mnx_payload_scan.service",
+            "mnx-thirdparty.service", "mnx_regression_api.service",
+            "eng_monitor.service", "mnx_service_control.service",
             "elasticsearch-node-2.service", "elasticsearch-node-1.service",
             "kafka.service", "zookeeper.service",
         ]

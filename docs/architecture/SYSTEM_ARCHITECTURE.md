@@ -32,7 +32,7 @@
 
 **MNX NDR**은 네트워크 미러(SPAN/TAP) 트래픽을 캡처·분석하여 위협을 탐지·대응하는 **온프레미스 가상 어플라이언스**다. 제품은 두 개의 독립된 버전 트랙으로 구성된다:
 
-- **관리 콘솔(MNXMC) v2.3.0** — `/mnxmc`의 Python/Textual **TUI**. deb 패키지로 배포.
+- **관리 콘솔(MNXMC) v2.3.1** — `/mnxmc`의 Python/Textual **TUI**. deb 패키지로 배포.
 - **NDR 엔진 (Web/API) v23.5.1.2** — Docker 이미지 `mnx-api-v23`(Spring Boot/Java) + `mnx-web-v23`(Vue+nginx).
 
 데이터플레인의 심장은 **자체 개발 `capture` 엔진(내부 패키지 버전 5.8.2)**이며, 여기에 자체 **`mnxdpi`(ipoque PACE2 기반 DPI)**, **Suricata IDS**, **파일분석 체인(payload_analysis + file_analysis_ai + BitDefender scanengine)**이 결합된다. 저장은 **Elasticsearch**(세션/플로우), **MariaDB**(케이스/설정), **Kafka**(파일분석 큐)가 담당한다.
@@ -251,7 +251,7 @@ ls -lt /data/raw | head          # 신규 pcap 생성 확인
 | flood-stage | ES 디스크 워터마크(기본 95%) 초과 시 인덱스 읽기전용 전환 |
 | nif / Net-1 | 네트워크 인터페이스(센서) 식별자, 망 분리 축 |
 | 1g/10g | 트래픽 프로파일(대역), compose/Spring 프로파일로 선택 |
-| MNXMC | MNX Management Console(관리 TUI, v2.3.0) |
+| MNXMC | MNX Management Console(관리 TUI, v2.3.1) |
 
 ---
 

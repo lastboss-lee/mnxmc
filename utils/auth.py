@@ -13,7 +13,7 @@ Linux 시스템 계정 인증 모듈.
 - 보안 강화 (비밀번호 메모리 처리)
 
 Author: MNX Team
-Version: 2.3.0
+Version: 2.3.1
 """
 
 import os
