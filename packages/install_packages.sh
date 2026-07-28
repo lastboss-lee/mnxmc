@@ -52,6 +52,13 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+# ── 기존 tty(getty@tty1) 재시작 ──────────────────────────────────────────────
+# 설치 본작업 전에 현재 콘솔에서 돌고 있는 기존 TUI 세션을 먼저 정리한다.
+# (새 override.conf 적용/재시작은 [6/8] 단계에서 별도 수행)
+echo "[0/0] 기존 getty@tty1 재시작..."
+systemctl restart getty@tty1 2>/dev/null || true
+ok "getty@tty1 재시작 요청 완료"
+
 # ── [0/0] Timezone 설정 (KST, UTC+9) ────────────────────────────────────────
 echo "[0/0] Timezone 설정..."
 
