@@ -1041,7 +1041,12 @@ class MnxConfigScreen(BaseScreen):
 
         scroll.mount(Static(
             "[bright_black]각 인터페이스에 캡처 태그(Net-*)를 선택하세요. "
-            "미선택 인터페이스 = 캡처 제외. 저장 시 config.ini 에 자동 반영됩니다.[/]",
+            "미선택 인터페이스 = 캡처 제외. 저장 시 config.ini + suricata.yaml(af-packet/pcap)에 자동 반영됩니다.[/]",
+            classes="section-desc",
+        ))
+        scroll.mount(Static(
+            "[bright_black]이동: [white]Tab[/] 패널  ·  [white]←→[/] 칩  ·  "
+            "[white]↑↓[/] 인터페이스  ·  [white]Enter/Space[/] 선택[/]",
             classes="section-desc",
         ))
 
@@ -1052,8 +1057,9 @@ class MnxConfigScreen(BaseScreen):
         for r, iface in enumerate(self._cap_ifaces):
             sel = self._cap_sel.get(iface)
             children = [Static(iface, classes="cap-ifname")]
-            # None(미설정) 칩 — 선택 시 캡처에서 제외
-            none_chip = Button("None", id=f"cap{gen}-none-{r}",
+            # None(미설정) 칩 — 선택 시 캡처에서 제외. 선택 시 ✓ 마커로 확인.
+            none_chip = Button(self._none_label(sel is None),
+                               id=f"cap{gen}-none-{r}",
                                classes="cap-chip cap-chip-none")
             if sel is None:
                 none_chip.add_class("chip-on")
@@ -1083,6 +1089,19 @@ class MnxConfigScreen(BaseScreen):
         scroll.mount(Static(f"[bright_black]interfaceOps = {cur_ops}[/]",
                             id=f"cap{gen}-cur-ops", classes="cap-current"))
 
+        # 현재 suricata.yaml af-packet / pcap 인터페이스 (읽기전용)
+        suri_af, suri_pcap = self._suricata_current_lines()
+        scroll.mount(Static("[#8b98a5]── Current (suricata.yaml) ──[/]", classes="cap-current-hdr"))
+        scroll.mount(Static(f"[bright_black]af-packet: {suri_af}[/]",
+                            id=f"cap{gen}-cur-suri-af", classes="cap-current"))
+        scroll.mount(Static(f"[bright_black]pcap:      {suri_pcap}[/]",
+                            id=f"cap{gen}-cur-suri-pcap", classes="cap-current"))
+
+    @staticmethod
+    def _none_label(selected: bool) -> str:
+        """None 칩 라벨 — 선택 시 ✓ 마커로 확인."""
+        return "✓ None" if selected else "None"
+
     def _cap_toggle_chip(self, r: int, t: int) -> None:
         """인터페이스 r 에 태그 t 선택 (단일 선택 — 다른 칩은 자동 해제)."""
         try:
@@ -1092,6 +1111,7 @@ class MnxConfigScreen(BaseScreen):
             return
         self._cap_sel[iface] = tag
         self._cap_refresh_row(r)
+        self._set_status(f"{iface} → {tag} 선택됨  ·  Ctrl+S=저장")
 
     def _cap_select_none(self, r: int) -> None:
         """인터페이스 r 을 None(미설정 = 캡처 제외)으로 설정."""
@@ -1101,13 +1121,18 @@ class MnxConfigScreen(BaseScreen):
             return
         self._cap_sel[iface] = None
         self._cap_refresh_row(r)
+        # None 확인 효과: 상태줄 + 토스트
+        self._set_status(f"{iface} 캡처 제외됨(None)  ·  Ctrl+S=저장")
+        self.app.notify(f"{iface}: 캡처 제외(None)", title="Capture")
 
     def _cap_refresh_row(self, r: int) -> None:
         gen = self._cap_gen
         iface = self._cap_ifaces[r]
         sel = self._cap_sel.get(iface)
         try:
-            self.query_one(f"#cap{gen}-none-{r}", Button).set_class(sel is None, "chip-on")
+            none_btn = self.query_one(f"#cap{gen}-none-{r}", Button)
+            none_btn.set_class(sel is None, "chip-on")
+            none_btn.label = self._none_label(sel is None)   # ✓ 마커 갱신
         except Exception:
             pass
         for t, tag in enumerate(self._cap_tags):
@@ -1118,7 +1143,7 @@ class MnxConfigScreen(BaseScreen):
             chip.set_class(tag == sel, "chip-on")
 
     def _cap_update_current(self) -> None:
-        """하단 'Current (config.ini)' 표시를 파일 현재값으로 갱신."""
+        """하단 'Current' 표시(config.ini + suricata.yaml)를 파일 현재값으로 갱신."""
         gen = getattr(self, "_cap_gen", 0)
         data = self._read_ini_section()
         cur_if  = markup_escape(data.get("interface", "") or "(none)")
@@ -1133,6 +1158,92 @@ class MnxConfigScreen(BaseScreen):
                 f"[bright_black]interfaceOps = {cur_ops}[/]")
         except Exception:
             pass
+        # suricata.yaml af-packet / pcap 현재값
+        suri_af, suri_pcap = self._suricata_current_lines()
+        try:
+            self.query_one(f"#cap{gen}-cur-suri-af", Static).update(
+                f"[bright_black]af-packet: {suri_af}[/]")
+        except Exception:
+            pass
+        try:
+            self.query_one(f"#cap{gen}-cur-suri-pcap", Static).update(
+                f"[bright_black]pcap:      {suri_pcap}[/]")
+        except Exception:
+            pass
+
+    def _suricata_current_lines(self) -> tuple:
+        """suricata.yaml af-packet/pcap 인터페이스를 화면용 요약 문자열로 반환.
+
+        Returns:
+            (af_str, pcap_str) — 예: ("enp101s0f0(99), enp101s0f1(98), default",
+                                      "enp101s0f0, enp101s0f1, default")
+        """
+        info = self._read_suricata_ifaces()
+        if not info.get("exists"):
+            return "(파일 없음)", "(파일 없음)"
+        if info.get("error"):
+            msg = markup_escape(f"(읽기 실패: {info['error']})")
+            return msg, msg
+        af = info.get("af", [])
+        pcap = info.get("pcap", [])
+        af_str = ", ".join(
+            f"{markup_escape(n)}({c})" if c else markup_escape(n) for n, c in af
+        ) or "(none)"
+        pcap_str = ", ".join(markup_escape(n) for n in pcap) or "(none)"
+        return af_str, pcap_str
+
+    @staticmethod
+    def _read_suricata_ifaces() -> dict:
+        """suricata.yaml 의 af-packet/pcap 섹션 인터페이스를 파싱(텍스트 레벨).
+
+        Returns dict:
+            {"exists": False}                                   파일 없음
+            {"exists": True, "error": "..."}                    읽기 실패
+            {"exists": True, "af": [(iface, cid|None), ...],
+                             "pcap": [iface, ...]}              성공
+        """
+        p = Path(SURICATA_YAML)
+        if not p.exists():
+            return {"exists": False}
+        try:
+            text = p.read_text(encoding="utf-8", errors="surrogateescape")
+        except OSError as e:
+            return {"exists": True, "error": str(e)}
+
+        def _section_block(header: str) -> str:
+            marker = "\n" + header + ":\n"
+            i = text.find(marker)
+            if i == -1:
+                return ""
+            i += 1                       # 선행 '\n' 건너뜀 → 'header:\n' 시작
+            out = []
+            for j, ln in enumerate(text[i:].split("\n")):
+                # 헤더 다음 줄부터, 들여쓰기 없는 top-level 키/항목을 만나면 종료
+                if j > 0 and ln[:1] not in (" ", "\t", "") \
+                        and not ln.startswith("#") and (":" in ln or ln.startswith("-")):
+                    break
+                out.append(ln)
+            return "\n".join(out)
+
+        af: list = []
+        cur = None
+        for ln in _section_block("af-packet").split("\n"):
+            m = re.match(r"\s*-\s*interface:\s*(\S+)", ln)
+            if m:
+                cur = [m.group(1), None]
+                af.append(cur)
+                continue
+            m2 = re.match(r"\s*cluster-id:\s*(\d+)", ln)
+            if m2 and cur is not None:
+                cur[1] = m2.group(1)
+
+        pcap: list = []
+        for ln in _section_block("pcap").split("\n"):
+            m = re.match(r"\s*-\s*interface:\s*(\S+)", ln)
+            if m:
+                pcap.append(m.group(1))
+
+        return {"exists": True, "af": [tuple(x) for x in af], "pcap": pcap}
 
     def _cap_add_tag(self) -> None:
         """새 태그 후보를 추가(모든 인터페이스 행에 칩 추가)."""
@@ -1159,6 +1270,64 @@ class MnxConfigScreen(BaseScreen):
                 chip.add_class("chip-on")
             row.mount(chip)
         inp.value = ""
+
+    # ── Capture 에디터 키보드 네비게이션 (←→ 칩 / ↑↓ 인터페이스 행) ──────────
+    def _cap_on_key(self, event: events.Key) -> None:
+        """capture 섹션 방향키 이동. Enter/Space 선택은 Button 기본 동작이 처리.
+
+        - 포커스가 칩(None/태그) Button 일 때만 방향키를 가로챈다.
+        - 새 태그 Input 포커스 시엔 텍스트 커서 이동을 위해 통과시킨다.
+        """
+        if event.key not in ("left", "right", "up", "down"):
+            return
+        focused = self.focused
+        if isinstance(focused, Input):
+            return                      # 새 태그 입력창 — 커서 이동 유지
+        if not isinstance(focused, Button):
+            return
+        bid = focused.id or ""
+        gen = getattr(self, "_cap_gen", 0)
+        prefix = f"cap{gen}-"
+        if not bid.startswith(prefix):
+            return
+
+        # (r, c) 파싱 — c: 0=None, 1..len(tags)=태그
+        rest = bid[len(prefix):]
+        if rest.startswith("none-"):
+            try:
+                r, c = int(rest[len("none-"):]), 0
+            except ValueError:
+                return
+        elif rest.startswith("chip-"):
+            try:
+                r_s, t_s = rest[len("chip-"):].split("-")
+                r, c = int(r_s), int(t_s) + 1
+            except ValueError:
+                return
+        else:
+            return                      # +Add Tag 버튼 등 — 방향키 미개입
+
+        n_rows = len(self._cap_ifaces)
+        n_cols = 1 + len(self._cap_tags)     # None + 태그들
+        if event.key == "left":
+            c -= 1
+        elif event.key == "right":
+            c += 1
+        elif event.key == "up":
+            r -= 1
+        elif event.key == "down":
+            r += 1
+        r = max(0, min(r, n_rows - 1))
+        c = max(0, min(c, n_cols - 1))
+
+        target = (f"cap{gen}-none-{r}" if c == 0
+                  else f"cap{gen}-chip-{r}-{c - 1}")
+        try:
+            self.query_one(f"#{target}", Button).focus()
+        except Exception:
+            pass
+        event.stop()
+        event.prevent_default()
 
     def _collect_capture_values(self):
         """선택 상태를 {interface, interfaceOps} 로 직렬화. 검증 실패 시 None."""
@@ -3213,11 +3382,14 @@ class MnxConfigScreen(BaseScreen):
     # ── Number key selection for disk_perf ───────────────────────────────────
 
     def on_key(self, event: events.Key) -> None:
-        """Handle keys for disk_perf section (S/T/R actions, 1-4 list selection).
+        """Handle keys for disk_perf / capture sections.
 
         on_key fires in the bubble-up phase — after the focused widget has already
         processed the key — so Input fields in other sections are not affected.
         """
+        if self._current_section == "capture":
+            self._cap_on_key(event)
+            return
         if self._current_section != "disk_perf":
             return
         key = event.key

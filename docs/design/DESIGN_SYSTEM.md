@@ -6,10 +6,11 @@
 > (철학만 참고, 복사하지 않음 — MNXMC 고유 디자인 시스템 구축)
 
 > **구현 현황 (v2.3.1, 2026-07-28):** 본 설계는 `feature/refactor-ui` 브랜치에서
-> **Phase 1~28로 전량 구현 완료**되었다. §1의 문제(P1~P8)는 모두 해소되었고,
+> **Phase 1~29로 전량 구현 완료**되었다. §1의 문제(P1~P8)는 모두 해소되었고,
 > 아래 §8 Migration Plan은 실제 커밋 이력으로 갱신되었다. 최초 계획(P1~P7)에 더해
 > 실전 튜닝(헤더 라이브 지시자·active-pane 포커스·Capture 에디터·Network 모달 등,
-> Phase 8~27)과 Service Manager 서비스 목록 갱신·사이드바 긴 이름 줄바꿈(Phase 28)이 추가되었다.
+> Phase 8~27)과 Service Manager 서비스 목록 갱신·사이드바 긴 이름 줄바꿈(Phase 28),
+> Capture 인터페이스 에디터 키보드 네비/None 확인 효과·suricata.yaml 동기화 뷰(Phase 29)가 추가되었다.
 
 ---
 
@@ -190,9 +191,10 @@ docs/design/
 | **26** | footer 가시성 복구(border-top가 유일 행을 삼키던 버그) | ✅ |
 | **27** | pane divider 고정(포커스 시 이동하지 않도록) | ✅ |
 | **28** | Service Manager 서비스 목록 최신화(12→15: `mnx_regression_api`·`mnx-thirdparty`·`elasticsearch` 래퍼 추가) + 사이드바 긴 이름 줄바꿈(폭 21칸 초과 시 `_`/`-`에서 2줄, 항목 높이 가변) | ✅ |
+| **29** | Capture 인터페이스 에디터: 키보드 네비(←→ 칩 / ↑↓ 인터페이스 행 / Enter·Space 선택) + None(캡처 제외) 선택 시 `✓ None` 마커·토스트·상태줄 확인 효과 + 화면에 현재 suricata.yaml(af-packet/pcap) 인터페이스 뷰 추가. 저장 시 config.ini + suricata.yaml(af-packet cluster-id 99·98…, pcap) 동기화 | ✅ |
 
 > 릴리스: **v2.3.0** — `/data/mnxmc-2.3.0.deb` (2026-07-23). 버전 문자열 전 파일 통일.
-> 릴리스: **v2.3.1** — `/data/mnxmc-2.3.1.deb` (2026-07-28). Service Manager 서비스 목록 최신화 + 사이드바 긴 이름 줄바꿈(Phase 28). 버전 문자열 전 파일 v2.3.1 통일.
+> 릴리스: **v2.3.1** — `/data/mnxmc-2.3.1.deb` (2026-07-28). Service Manager 서비스 목록 최신화 + 사이드바 긴 이름 줄바꿈(Phase 28), Capture 인터페이스 에디터 키보드 네비·None 확인 효과·suricata.yaml 동기화 뷰(Phase 29). 버전 문자열 전 파일 v2.3.1 통일.
 
 ---
 
