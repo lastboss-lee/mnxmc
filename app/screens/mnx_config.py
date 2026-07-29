@@ -1193,29 +1193,61 @@ class MnxConfigScreen(BaseScreen):
         return af_str, pcap_str
 
     @staticmethod
-    def _read_suricata_ifaces() -> dict:
+    def _read_suricata_text() -> tuple:
+        """suricata.yaml 내용을 읽어 (text, err) 반환.
+
+        err: None=성공 · "not_found"=파일 없음 · 그 외=오류 메시지.
+
+        /etc/suricata/suricata.yaml 은 root 전용이라, 비root(SSH) 세션에서는
+        직접 읽기가 PermissionError 로 실패한다(파일 stat 자체가 EACCES).
+        이 경우 sudo -n cat 으로 폴백한다. root 콘솔에서는 직접 읽기로 끝난다.
+        ⚠ Path.exists() 는 EACCES 를 그대로 raise 하므로 사용하지 않는다(EAFP).
+        """
+        try:
+            return Path(SURICATA_YAML).read_text(
+                encoding="utf-8", errors="surrogateescape"), None
+        except FileNotFoundError:
+            return None, "not_found"
+        except PermissionError:
+            pass                      # 비root → sudo -n cat 폴백
+        except OSError as e:
+            return None, str(e)
+        try:
+            r = subprocess.run(
+                ["sudo", "-n", "/usr/bin/cat", SURICATA_YAML],
+                capture_output=True, timeout=10,
+            )
+            if r.returncode == 0:
+                return r.stdout.decode("utf-8", errors="surrogateescape"), None
+            err = r.stderr.decode("utf-8", errors="replace").strip()
+            return None, err or f"cat rc={r.returncode}"
+        except Exception as e:
+            return None, str(e)
+
+    def _read_suricata_ifaces(self) -> dict:
         """suricata.yaml 의 af-packet/pcap 섹션 인터페이스를 파싱(텍스트 레벨).
 
         Returns dict:
             {"exists": False}                                   파일 없음
-            {"exists": True, "error": "..."}                    읽기 실패
+            {"exists": True, "error": "..."}                    읽기 실패/권한 없음
             {"exists": True, "af": [(iface, cid|None), ...],
                              "pcap": [iface, ...]}              성공
         """
-        p = Path(SURICATA_YAML)
-        if not p.exists():
+        text, err = self._read_suricata_text()
+        if err == "not_found":
             return {"exists": False}
-        try:
-            text = p.read_text(encoding="utf-8", errors="surrogateescape")
-        except OSError as e:
-            return {"exists": True, "error": str(e)}
+        if err:
+            return {"exists": True, "error": err}
 
         def _section_block(header: str) -> str:
-            marker = "\n" + header + ":\n"
-            i = text.find(marker)
-            if i == -1:
-                return ""
-            i += 1                       # 선행 '\n' 건너뜀 → 'header:\n' 시작
+            hdr = header + ":\n"
+            if text.startswith(hdr):     # 파일 맨 앞에 섹션이 오는 경우
+                i = 0
+            else:
+                i = text.find("\n" + hdr)
+                if i == -1:
+                    return ""
+                i += 1                   # 선행 '\n' 건너뜀 → 'header:\n' 시작
             out = []
             for j, ln in enumerate(text[i:].split("\n")):
                 # 헤더 다음 줄부터, 들여쓰기 없는 top-level 키/항목을 만나면 종료
@@ -2282,23 +2314,21 @@ class MnxConfigScreen(BaseScreen):
             )
         return True
 
-    @staticmethod
-    def _sync_suricata_yaml(interfaces: list) -> tuple:
+    def _sync_suricata_yaml(self, interfaces: list) -> tuple:
         """config.ini 인터페이스 변경 시 suricata.yaml af-packet/pcap 동기화.
 
         텍스트 레벨 섹션 치환 — YAML 파서 미사용 (전체 재포맷 방지).
         '- interface: default' 블록과 주석은 보존.
+        비root(SSH)는 _read_suricata_text() 의 sudo -n cat 폴백으로 읽는다.
         """
-        p = Path(SURICATA_YAML)
-        if not p.exists():
-            return False, f"{SURICATA_YAML} 파일 없음"
         if not interfaces:
             return False, "인터페이스 목록이 비어있음"
 
-        try:
-            text = p.read_text(encoding="utf-8", errors="surrogateescape")
-        except OSError as e:
-            return False, f"읽기 실패: {e}"
+        text, err = self._read_suricata_text()
+        if err == "not_found":
+            return False, f"{SURICATA_YAML} 파일 없음"
+        if err:
+            return False, f"읽기 실패: {err}"
 
         # 변경 전 백업 (/opt/mnx/etc/ 는 sands 쓰기 가능)
         try:

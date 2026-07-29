@@ -25,6 +25,7 @@ Defaults!/usr/sbin/netplan               !requiretty
 Defaults!/usr/bin/systemctl              !requiretty
 Defaults!/usr/sbin/ethtool               !requiretty
 Defaults!/usr/bin/tee                    !requiretty
+Defaults!/usr/bin/cat                    !requiretty
 Defaults!/usr/bin/rm                     !requiretty
 Defaults!/usr/sbin/ufw                   !requiretty
 Defaults!/usr/bin/fio                    !requiretty
@@ -61,7 +62,9 @@ sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/mnx/etc/mnx_config.json
 sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/mnx/etc/mnxmc_console.json
 sands ALL=(root) NOPASSWD: /usr/bin/tee /opt/service_control/settings.json
 
-# ── Suricata 설정 파일 쓰기 (캡처 인터페이스 동기화) ─────────────────────────
+# ── Suricata 설정 파일 읽기/쓰기 (캡처 인터페이스 동기화 + Current 뷰) ────────
+# 읽기: 비root(SSH)에서 root 전용 suricata.yaml 을 Current 뷰/동기화용으로 읽기
+sands ALL=(root) NOPASSWD: /usr/bin/cat /etc/suricata/suricata.yaml
 sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/suricata/suricata.yaml
 
 # ── SSH 세션 정책 파일 쓰기 ───────────────────────────────────────────────────
