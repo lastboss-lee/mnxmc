@@ -5,7 +5,7 @@
 > 참고 철학: Cisco FMC · FortiManager · VMware ESXi · Palo Alto · Sophos · TrueNAS SCALE
 > (철학만 참고, 복사하지 않음 — MNXMC 고유 디자인 시스템 구축)
 
-> **구현 현황 (v2.3.1, 2026-07-28):** 본 설계는 `feature/refactor-ui` 브랜치에서
+> **구현 현황 (v2.3.2, 2026-07-29):** 본 설계는 `feature/refactor-ui` 브랜치에서
 > **Phase 1~29로 전량 구현 완료**되었다. §1의 문제(P1~P8)는 모두 해소되었고,
 > 아래 §8 Migration Plan은 실제 커밋 이력으로 갱신되었다. 최초 계획(P1~P7)에 더해
 > 실전 튜닝(헤더 라이브 지시자·active-pane 포커스·Capture 에디터·Network 모달 등,
@@ -194,7 +194,7 @@ docs/design/
 | **29** | Capture 인터페이스 에디터: 키보드 네비(←→ 칩 / ↑↓ 인터페이스 행 / Enter·Space 선택) + None(캡처 제외) 선택 시 `✓ None` 마커·토스트·상태줄 확인 효과 + 화면에 현재 suricata.yaml(af-packet/pcap) 인터페이스 뷰 추가. 저장 시 config.ini + suricata.yaml(af-packet cluster-id 99·98…, pcap) 동기화 | ✅ |
 
 > 릴리스: **v2.3.0** — `/data/mnxmc-2.3.0.deb` (2026-07-23). 버전 문자열 전 파일 통일.
-> 릴리스: **v2.3.1** — `/data/mnxmc-2.3.1.deb` (2026-07-28). Service Manager 서비스 목록 최신화 + 사이드바 긴 이름 줄바꿈(Phase 28), Capture 인터페이스 에디터 키보드 네비·None 확인 효과·suricata.yaml 동기화 뷰(Phase 29). 버전 문자열 전 파일 v2.3.1 통일.
+> 릴리스: **v2.3.2** — `/data/mnxmc-2.3.2.deb` (2026-07-29). Service Manager 서비스 목록 최신화 + 사이드바 긴 이름 줄바꿈(Phase 28), Capture 인터페이스 에디터 키보드 네비·None 확인 효과·suricata.yaml 동기화 뷰(Phase 29), install_packages.sh 시작 시 getty@tty1 선재시작, **SSH 비root에서 suricata.yaml 읽기 PermissionError로 Interfaces 진입 시 TUI 크래시하던 버그 수정**(sudo -n cat 폴백 + sudoers cat 규칙). 버전 문자열 전 파일 v2.3.2 통일. (interim v2.3.1 빌드 대체)
 
 ---
 
