@@ -178,7 +178,12 @@ Press [yellow]Enter[/] on 'Launch Shell' menu item
         """명령 히스토리."""
         try:
             from datetime import datetime as _dt
-            user = getattr(self.app, 'authenticated_user', None) or os.environ.get('USER', 'root')
+            # 'root' 기본값 금지 — 인증 정보가 없을 때 root 의 .bash_history 를
+            # 노출하게 된다. 사용자를 특정할 수 없으면 히스토리를 읽지 않는다.
+            user = getattr(self.app, 'authenticated_user', None)
+            if not user:
+                return ("[bold cyan]══ Command History ══[/]\n\n"
+                        "[yellow]인증된 사용자 정보가 없어 히스토리를 표시할 수 없습니다.[/]")
             user_info = pwd.getpwnam(user)
             history_file = os.path.join(user_info.pw_dir, '.bash_history')
 
@@ -264,29 +269,65 @@ History file will be created after shell usage.
             self.log.error(f"Content update error: {e}")
     
     def _launch_shell(self) -> None:
-        """대화형 셸 실행."""
+        """대화형 셸을 '로그인한 사용자' 권한으로 실행.
+
+        TUI 는 tty1 에서 root 로 기동되므로, 셸을 그냥 spawn 하면 로그인 계정과
+        무관하게 root 셸이 뜬다. 반드시 authenticated_user 로 권한을 강하시키고,
+        강하에 실패하면 **셸을 열지 않는다**(root 셸 fallback 금지).
+        """
         if self._shell_active:
             return
+
+        # 인증된 사용자가 없으면 셸을 열지 않는다.
+        # (예전엔 USER 미설정 시 'root' 로 기본값을 줘서 root 셸이 열렸다)
+        user = getattr(self.app, 'authenticated_user', None)
+        if not user:
+            self._show_error(
+                "인증된 사용자 정보가 없어 셸을 실행할 수 없습니다.\n"
+                "로그아웃 후 다시 로그인하세요."
+            )
+            return
+
+        # root 로 강하할 대상이 root 가 아니라면 사전에 권한 강하 가능 여부를 확인한다.
+        # sudo -i -u <user> 는 자식 셸의 종료코드를 그대로 전달하므로, 실행 후의
+        # 반환값으로는 "강하 실패" 와 "정상 세션이 비정상 종료코드로 끝남" 을
+        # 구분할 수 없다. 따라서 spawn 전에 probe 한다.
+        drop_privs = os.geteuid() == 0 and user != 'root'
+        if drop_privs:
+            try:
+                probe = subprocess.run(
+                    ['sudo', '-n', '-u', user, 'true'],
+                    capture_output=True, timeout=10,
+                )
+            except Exception as e:
+                self._show_error(f"권한 강하 확인 실패: {e}")
+                return
+            if probe.returncode != 0:
+                err = probe.stderr.decode('utf-8', errors='replace').strip()
+                self.log.error(f"privilege drop to '{user}' failed: {err}")
+                self._show_error(
+                    f"'{user}' 권한으로 셸을 시작할 수 없습니다.\n"
+                    f"{err or f'sudo -u {user} 실패'}\n\n"
+                    "보안 정책상 root 셸로 대체하지 않습니다."
+                )
+                return
+
         self._shell_active = True
         try:
-            user = getattr(self.app, 'authenticated_user', None) or os.environ.get('USER', 'root')
-            uid = os.getuid()
-            
             # Textual 앱 일시 중지
             with self.app.suspend():
                 # 터미널 화면 초기화 (실제 출력해야 화면이 지워짐)
                 subprocess.run(['clear'], check=False)
-                
+
                 # 배너 출력
                 from datetime import datetime
                 now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                
-                # 역할 결정
-                if uid == 0:
-                    role = "Administrator (root)"
-                else:
-                    role = "User"
-                
+
+                # 역할 결정 — 셸이 실제로 실행될 대상 사용자 기준.
+                # (프로세스 uid 로 판정하면 TUI 가 root 라서 sands 세션에도
+                #  "Administrator (root)" 로 표시돼 실제 권한을 오인하게 된다)
+                role = "Administrator (root)" if user == 'root' else "User"
+
                 # ASCII 아트 배너
                 print("\033[1;36m")
                 print(r"  ███╗   ███╗███╗   ██╗██╗  ██╗    ███╗   ██╗██████╗ ██████╗ ")
@@ -337,14 +378,17 @@ History file will be created after shell usage.
                 # 셸 실행
                 # su - user 는 PAM 보안 정책(securetty/pam_wheel)으로 차단되므로
                 # sudo -i -u user 사용 (PAM su 우회, sudo 권한 체계 적용)
-                if os.getuid() == 0 and user != 'root':
-                    ret = subprocess.call(['sudo', '-i', '-u', user])
-                    if ret != 0:
-                        # sudo 도 실패 시 root 셸로 fallback
-                        subprocess.call(['/bin/bash', '--login'])
+                #
+                # 종료코드는 검사하지 않는다 — sudo 가 자식 셸의 종료코드를 그대로
+                # 전달하므로(예: 셸에서 마지막 명령 실패 후 exit → ret=1),
+                # ret != 0 을 "강하 실패" 로 보고 root 셸을 띄우면 권한 상승이 된다.
+                # 강하 가능 여부는 위에서 이미 probe 로 확인했다.
+                if drop_privs:
+                    subprocess.call(['sudo', '-i', '-u', user])
                 else:
+                    # 이미 목표 권한(비root 세션이거나 로그인 사용자가 root)
                     subprocess.call(['/bin/bash', '--login'])
-                
+
                 # 셸 종료 후 터미널 리셋 (출력 숨김)
                 subprocess.call(['reset'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
