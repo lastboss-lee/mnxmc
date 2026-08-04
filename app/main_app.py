@@ -65,6 +65,9 @@ class MNXApp(App):
         Binding("f8", "rescan_network", "Rescan Network", priority=True),
         Binding("f10", "quit_app", "Exit", priority=True),
         Binding("escape", "go_back", "Back", priority=False),
+        # Ctrl+L: 화면 전체 강제 재그리기 (커널 메시지 등 외부 출력으로 화면이
+        #         오염됐을 때 복구용). F5 는 데이터 갱신이라 오염을 지우지 못한다.
+        Binding("ctrl+l", "redraw", "Redraw", priority=True),
         # Ctrl+Q, Ctrl+P 무시 (아무 동작 안함)
         Binding("ctrl+q", "noop", show=False),
         Binding("ctrl+p", "noop", show=False),
@@ -349,13 +352,33 @@ class MNXApp(App):
         self._idle_warning_shown = False
 
     def _check_idle_timeout(self) -> None:
-        """1분마다 호출 — idle 시간 초과 시 앱 종료."""
+        """1분마다 호출 — idle 시간 초과 시 세션 종료.
+
+        SSH 모드(skip_login=True): 앱 종료 = 접속 종료.
+        TTY1 모드(skip_login=False): 로그인 화면으로 복귀(앱은 계속 실행).
+        """
         if self._idle_timeout_minutes <= 0:
             return
 
         elapsed_min = (time.monotonic() - self._last_activity_time) / 60
 
         if elapsed_min >= self._idle_timeout_minutes:
+            # TTY1 모드(skip_login=False)에서는 절대 exit() 하지 않는다.
+            # getty override 가 Restart=on-failure 이므로 정상 종료(0)로 끝나면
+            # 서비스가 멈춰 **콘솔이 완전히 사라진다**. F10 로그아웃과 동일하게
+            # 로그인 화면으로 되돌려 세션만 닫는다.
+            if not self.skip_login:
+                self.log.info(
+                    f"Idle timeout: {elapsed_min:.0f}min elapsed "
+                    f"(limit={self._idle_timeout_minutes}min) — 로그인 화면으로 복귀"
+                )
+                self._idle_warning_shown = False
+                self._last_activity_time = time.monotonic()
+                if self.authenticated_user:
+                    self.logout()
+                return
+
+            # SSH 모드: 세션 종료가 곧 접속 종료이므로 그대로 exit
             self.log.info(
                 f"Idle timeout: {elapsed_min:.0f}min elapsed "
                 f"(limit={self._idle_timeout_minutes}min) — exiting"
@@ -372,6 +395,22 @@ class MNXApp(App):
                 severity="warning",
                 timeout=60,
             )
+
+    def action_redraw(self) -> None:
+        """Ctrl+L: 터미널 전체를 강제로 다시 그린다.
+
+        Textual 은 자기가 그린 화면이 외부 출력(커널 메시지, wall 브로드캐스트)
+        으로 덮인 것을 알지 못하므로 오염이 그대로 남는다. 화면 전체를 지우고
+        레이아웃째 재렌더해 복구한다.
+        """
+        try:
+            self.refresh(layout=True)
+            screen = self.screen
+            if screen is not None:
+                screen.refresh(layout=True)
+            self.log.info("Screen redraw requested (Ctrl+L)")
+        except Exception as e:
+            self.log.error(f"Redraw failed: {e}")
 
     def action_noop(self) -> None:
         """아무 동작도 하지 않음 (Ctrl+Q, Ctrl+P 등 무시용)."""

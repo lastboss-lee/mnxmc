@@ -21,6 +21,7 @@ import pwd
 import subprocess
 import time
 import logging
+from logging.handlers import RotatingFileHandler
 import socket
 from datetime import datetime
 from typing import Tuple, Optional
@@ -112,7 +113,7 @@ def _get_auth_logger() -> logging.Logger:
         
         try:
             AUTH_LOG_DIR.mkdir(parents=True, exist_ok=True)
-            file_handler = logging.FileHandler(AUTH_LOG_FILE)
+            file_handler = RotatingFileHandler(AUTH_LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5)
             file_handler.setLevel(logging.INFO)
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)

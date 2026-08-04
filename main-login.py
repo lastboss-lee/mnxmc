@@ -21,6 +21,7 @@ import sys
 import os
 import signal
 import logging
+from logging.handlers import RotatingFileHandler
 import atexit
 import subprocess
 from datetime import datetime
@@ -38,6 +39,28 @@ AUTH_LOG_FILE = LOG_DIR / "mnx_auth.log"
 # 로그인 정책
 MAX_LOGIN_ATTEMPTS = 3
 LOCKOUT_DURATION = 30  # seconds
+
+# 세션 정책 (main.py 와 동일한 설정 파일을 공유)
+MNXMC_CONFIG_PATH = Path("/opt/mnx/etc/mnxmc_console.json")
+
+
+def read_idle_timeout() -> int:
+    """mnxmc_console.json 의 session.timeout(분) 을 읽는다.
+
+    tty1 콘솔도 유휴 타임아웃을 적용한다 — 물리 접근자가 남겨진 세션을 그대로
+    이어받는 것을 막기 위함. 타임아웃 시 앱을 종료하지 않고 로그인 화면으로
+    복귀한다(main_app._check_idle_timeout 참고 — exit 하면 getty 가
+    Restart=on-failure 라서 콘솔이 사라진다).
+
+    Returns:
+        분 단위 타임아웃. 파일이 없거나 오류면 기본 15.
+    """
+    try:
+        import json as _json
+        data = _json.loads(MNXMC_CONFIG_PATH.read_text())
+        return int(data.get("session", {}).get("timeout", 15))
+    except Exception:
+        return 15
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 로깅 설정
@@ -61,7 +84,7 @@ def setup_logging() -> logging.Logger:
     # 파일 핸들러
     try:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(LOG_FILE)
+        file_handler = RotatingFileHandler(LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5)
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -95,7 +118,7 @@ def setup_auth_logging() -> logging.Logger:
     
     try:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(AUTH_LOG_FILE)
+        file_handler = RotatingFileHandler(AUTH_LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5)
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
         auth_logger.addHandler(file_handler)
@@ -358,11 +381,10 @@ def main() -> int:
     print_startup_banner()
 
     # 11. 커널 콘솔 메시지 억제 (TUI 위에 출력되는 커널/ethtool 메시지 방지)
+    # ⚠ 종료 시 복원하지 않는다 — dmesg -n 은 시스템 전역 설정이고, 이 콘솔은
+    #    TUI 전용이므로 항상 조용해야 한다. 상세는 main.py 의 동일 지점 주석 참고.
     try:
         subprocess.run(['dmesg', '-n', '1'], capture_output=True, timeout=5)
-        register_cleanup(
-            lambda: subprocess.run(['dmesg', '-n', '4'], capture_output=True, timeout=5)
-        )
     except Exception:
         pass
 
@@ -373,7 +395,13 @@ def main() -> int:
         logger.info("Starting MNX application (skip_login=False)")
         auth_logger.info("Login session started")
         
-        app = MNXApp(skip_login=False, authenticated_user=None)
+        idle_timeout = read_idle_timeout()
+        logger.info(f"TTY1 idle timeout = {idle_timeout}min (0=비활성)")
+        app = MNXApp(
+            skip_login=False,
+            authenticated_user=None,
+            idle_timeout_minutes=idle_timeout,
+        )
         app.run()
         
         logger.info("MNX application terminated normally")

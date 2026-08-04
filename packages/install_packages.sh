@@ -79,6 +79,25 @@ fi
 
 echo ""
 
+# ── [0/0] 콘솔 커널 메시지 억제 (영구) ───────────────────────────────────────
+# tty1 은 MNXMC TUI 전용 콘솔이다. 커널/드라이버 메시지(특히 10G 미러 NIC 의
+# link up-down, ethtool)가 KERN_WARNING 으로 찍히면 TUI 화면을 덮어버린다.
+# console_loglevel 을 1(KERN_ALERT 이상만)로 영구 고정한다.
+# 커널 메시지는 dmesg / journalctl -k 로 확인한다.
+echo "[0/0] 콘솔 커널 메시지 억제 설정..."
+cat > /etc/sysctl.d/99-mnxmc-console.conf <<'SYSCTL'
+# MNXMC: tty1 은 TUI 전용 콘솔이므로 커널 메시지를 콘솔에 출력하지 않는다.
+# 형식: console_loglevel default_message_loglevel minimum_console_loglevel default_console_loglevel
+kernel.printk = 1 4 1 7
+SYSCTL
+if sysctl -q -p /etc/sysctl.d/99-mnxmc-console.conf 2>/dev/null; then
+    ok "kernel.printk = 1 4 1 7 적용 (현재: $(cut -f1 /proc/sys/kernel/printk))"
+else
+    warn "sysctl 적용 실패 — 재부팅 후 적용됨"
+fi
+
+echo ""
+
 # ── [1/3] apt .deb 설치 ──────────────────────────────────────────────────────
 echo "[1/3] apt 패키지 설치..."
 

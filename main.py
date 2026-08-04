@@ -20,6 +20,7 @@ import os
 import pwd
 import signal
 import logging
+from logging.handlers import RotatingFileHandler
 import atexit
 import subprocess
 from datetime import datetime, timedelta
@@ -58,7 +59,7 @@ def setup_logging(username: str) -> logging.Logger:
     # 파일 핸들러 (가능한 경우)
     try:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(LOG_FILE)
+        file_handler = RotatingFileHandler(LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5)
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -641,11 +642,16 @@ def main() -> int:
 
     # 13. 커널 콘솔 메시지 억제 (TUI 위에 출력되는 커널/ethtool 메시지 방지)
     # dmesg -n 1: KERN_ALERT 이상만 콘솔에 표시 (기본값 4=WARNING)
+    #
+    # ⚠ 종료 시 복원하지 않는다. dmesg -n 은 tty 별 설정이 아니라 **시스템 전역**
+    #    이므로, SSH 세션이 끝날 때 -n 4 로 되돌리면 tty1 에서 상시 실행 중인
+    #    콘솔 TUI 위로 커널 메시지가 다시 뚫린다(실측: tty1 12일 가동 중
+    #    console_loglevel 이 4). 이 장비의 콘솔은 TUI 전용이므로 계속 조용해야
+    #    하고, 커널 메시지는 dmesg/journalctl 로 확인한다.
+    #    영구 설정은 /etc/sysctl.d/99-mnxmc-console.conf (install_packages.sh)
+    #    가 담당하며, 아래는 그 전에 설치된 환경을 위한 보완이다.
     try:
         subprocess.run(['dmesg', '-n', '1'], capture_output=True, timeout=5)
-        register_cleanup(
-            lambda: subprocess.run(['dmesg', '-n', '4'], capture_output=True, timeout=5)
-        )
     except Exception:
         pass  # 권한 없거나 실패해도 계속 진행
 
