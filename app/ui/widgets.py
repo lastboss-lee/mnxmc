@@ -15,7 +15,7 @@ MNXMC Design System — Common Components
     MessageBox     — 정보/경고/오류/성공 박스 (info_box/... 팩토리)
 
 Author: MNX Team
-Version: 2.3.3
+Version: 2.3.4
 """
 
 from __future__ import annotations

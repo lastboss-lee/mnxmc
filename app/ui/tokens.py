@@ -16,7 +16,7 @@ Enterprise Network Appliance 수준의 일관된 TUI를 위한 디자인 토큰 
     동일하게 유지해야 한다. 한쪽을 수정하면 반드시 다른 쪽도 함께 수정한다.
 
 Author: MNX Team
-Version: 2.3.3
+Version: 2.3.4
 """
 
 from __future__ import annotations
