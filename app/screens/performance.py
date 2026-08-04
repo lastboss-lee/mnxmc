@@ -21,7 +21,7 @@ from textual.binding import Binding
 
 from app.ui import tokens
 from app.ui.screen import BaseScreen
-from app.ui.widgets import SectionTitle
+from app.ui.widgets import SectionTitle, fmt_bytes
 
 
 class PerformanceScreen(BaseScreen):
@@ -382,8 +382,8 @@ class PerformanceScreen(BaseScreen):
                     f"[{s_color}]● {status:<6}[/] "
                     f"↓ {self._format_rate(rx_rate):<14} "
                     f"↑ {self._format_rate(tx_rate):<14} "
-                    f"{self._format_bytes(rx_bytes):<12} "
-                    f"{self._format_bytes(tx_bytes)}\n"
+                    f"{fmt_bytes(rx_bytes, sep=''):<12} "
+                    f"{fmt_bytes(tx_bytes, sep='')}\n"
                 )
 
             # ── 하단 테이블: 정적 정보 ────────────────────────────────────────
@@ -673,14 +673,6 @@ class PerformanceScreen(BaseScreen):
         if mbits >= 1.0:
             return f"{mbits:.1f} Mbps"
         return f"{mbits * 1000:.0f} Kbps"
-    
-    def _format_bytes(self, bytes_val: int) -> str:
-        """바이트 포맷."""
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if bytes_val < 1024:
-                return f"{bytes_val:.1f}{unit}"
-            bytes_val /= 1024
-        return f"{bytes_val:.1f}PB"
     
     def _get_footer(self) -> str:
         """하단 안내."""

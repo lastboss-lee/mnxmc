@@ -23,6 +23,7 @@ from textual.binding import Binding
 from textual.reactive import reactive
 from textual import on
 from app.ui.screen import BaseScreen, Sidebar
+from app.ui.widgets import fmt_bytes
 from typing import Optional
 import subprocess
 import threading
@@ -949,8 +950,8 @@ Press Enter to configure[/]
   [white]Mirror Port :[/] {mirror_status}
 
 [yellow]Traffic Statistics:[/]
-  [white]RX Bytes    :[/] {self._format_bytes(getattr(iface, 'rx_bytes', 0))}
-  [white]TX Bytes    :[/] {self._format_bytes(getattr(iface, 'tx_bytes', 0))}
+  [white]RX Bytes    :[/] {fmt_bytes(getattr(iface, 'rx_bytes', 0))}
+  [white]TX Bytes    :[/] {fmt_bytes(getattr(iface, 'tx_bytes', 0))}
   [white]RX Packets  :[/] {getattr(iface, 'rx_packets', 0):,}
   [white]TX Packets  :[/] {getattr(iface, 'tx_packets', 0):,}
 
@@ -1023,8 +1024,8 @@ Press Enter to configure[/]
   [white]Mirror Port :[/] {mirror_status}
 
 [yellow]Traffic Statistics:[/]
-  [white]RX Bytes    :[/] {self._format_bytes(getattr(iface, 'rx_bytes', 0))}
-  [white]TX Bytes    :[/] {self._format_bytes(getattr(iface, 'tx_bytes', 0))}
+  [white]RX Bytes    :[/] {fmt_bytes(getattr(iface, 'rx_bytes', 0))}
+  [white]TX Bytes    :[/] {fmt_bytes(getattr(iface, 'tx_bytes', 0))}
   [white]RX Packets  :[/] {getattr(iface, 'rx_packets', 0):,}
   [white]TX Packets  :[/] {getattr(iface, 'tx_packets', 0):,}
 
@@ -1041,13 +1042,6 @@ Press Enter to configure[/]
             details_widget.update(content)
         except Exception as e:
             self.log.error(f"Details preview failed: {e}")
-
-    def _format_bytes(self, bytes_val: int) -> str:
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if bytes_val < 1024.0:
-                return f"{bytes_val:.1f} {unit}"
-            bytes_val /= 1024.0
-        return f"{bytes_val:.1f} PB"
 
     def _update_details(self) -> None:
         try:

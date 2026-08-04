@@ -208,3 +208,15 @@ def error_box(message: str, **kwargs) -> MessageBox:
 def success_box(message: str, **kwargs) -> MessageBox:
     """성공 박스."""
     return MessageBox(message, level="success", **kwargs)
+
+
+def fmt_bytes(value: float, sep: str = " ") -> str:
+    """바이트를 사람이 읽는 단위로 — 화면 전체 공용 단일 소스.
+
+    sep: 숫자와 단위 사이 구분자. Performance 화면은 열 정렬 폭 때문에 "" 를 쓴다.
+    """
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024.0:
+            return f"{value:.1f}{sep}{unit}"
+        value /= 1024.0
+    return f"{value:.1f}{sep}PB"
