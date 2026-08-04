@@ -10,8 +10,5 @@ Enterprise Network Appliance 수준의 일관된 TUI를 위한 공통 디자인 
     widgets.py  — 공통 컴포넌트 (Card/Meter/PropertyGrid/MessageBox 등)
     screen.py   — App Shell 및 BaseScreen (Header/Sidebar/Content/Footer)
 
-Phase 1(기반)에서는 제공만 하며 기존 화면 동작에 영향을 주지 않는다.
-화면별 적용은 Phase 2 이후 각각 별도 commit 으로 진행한다.
+각 모듈은 명시 경로로 임포트한다 (`from app.ui.widgets import ...`).
 """
-
-__all__ = ["tokens"]
