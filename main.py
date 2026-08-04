@@ -121,16 +121,39 @@ def check_dependencies() -> tuple:
 
 def get_current_user() -> tuple:
     """
-    현재 사용자 정보.
-    
+    실제 조작자 기준 사용자 정보.
+
+    sudo 로 기동된 경우(`sudo mnxmc`, `sudo python3.12 main.py`) 프로세스 uid 는
+    root 지만 실제 조작자는 sudo 를 호출한 계정이다. 프로세스 uid 로만 판정하면
+    세션 신원이 root 가 되어, skip_login=True 인 SSH 경로에서 **인증 화면 없이
+    root 세션**이 만들어지고 Launch Shell 도 root 셸로 열린다.
+    → SUDO_UID 가 있으면 그 계정을 조작자로 본다.
+
+    특권 작업의 분기는 여기 값이 아니라 `os.geteuid() == 0`(프로세스 실체)로
+    판정되므로, 신원을 조작자로 되돌려도 root 권한 작업은 그대로 동작한다.
+
     Returns:
         (username, uid, home_dir)
     """
+    uid = os.getuid()
+
+    # sudo 경유 → 호출한 실제 계정으로 신원 복원.
+    # SUDO_USER(문자열) 대신 SUDO_UID(숫자)를 신뢰해 이름 위조 여지를 줄이고,
+    # 프로세스가 실제로 root 일 때만 참조한다.
+    if uid == 0:
+        sudo_uid = os.environ.get("SUDO_UID", "")
+        if sudo_uid.isdigit() and int(sudo_uid) != 0:
+            try:
+                pw_entry = pwd.getpwuid(int(sudo_uid))
+                return pw_entry.pw_name, pw_entry.pw_uid, pw_entry.pw_dir
+            except KeyError:
+                pass    # sudo 호출자가 삭제된 계정 → 아래 root 경로로
+
     try:
-        pw_entry = pwd.getpwuid(os.getuid())
+        pw_entry = pwd.getpwuid(uid)
         return pw_entry.pw_name, pw_entry.pw_uid, pw_entry.pw_dir
     except KeyError:
-        return "unknown", os.getuid(), "/tmp"
+        return "unknown", uid, "/tmp"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
