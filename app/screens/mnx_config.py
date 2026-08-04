@@ -2699,8 +2699,22 @@ class MnxConfigScreen(BaseScreen):
             self.query_one("#button-row").display = False
         except Exception:
             pass
-        self._set_status("Power Control — Click a button, then type YES in the confirm field and press Enter")
+        self._set_status(
+            "Power Control — Reboot/Shutdown 선택(Enter) → confirm 필드에 YES 입력 후 Enter"
+        )
         self._render_sys_power_section()
+        # tty1 콘솔은 마우스가 없다. 섹션 진입 시 Reboot 버튼에 바로 포커스를 줘서
+        # Tab 으로 버튼을 찾아 헤매지 않게 한다(포커스 순서상 Tab 2회 필요했음).
+        self.set_timer(0.1, self._power_focus_first_button)
+
+    def _power_focus_first_button(self) -> None:
+        """sys_power 진입 시 Reboot 버튼으로 포커스 이동."""
+        if self._current_section != "sys_power":
+            return
+        try:
+            self.query_one("#btn-reboot", Button).focus()
+        except Exception:
+            pass
 
     def _render_sys_power_section(self) -> None:
         try:
@@ -2724,13 +2738,14 @@ class MnxConfigScreen(BaseScreen):
             ))
             scroll.mount(Static("── Confirm Action ───────────────────────", classes="power-hdr"))
             scroll.mount(Static(
-                " [bright_black]Click a button above to activate the confirm field.\n"
-                " Are you sure? Type YES and press Enter to proceed.[/]",
+                " [bright_black]↑↓/Tab 으로 위 버튼 선택 후 [white]Enter[/] → confirm 필드가 활성화됩니다.\n"
+                " 그 다음 [white]YES[/] 를 입력하고 [white]Enter[/] 를 누르면 실행됩니다. "
+                "취소는 [white]ESC[/].[/]",
                 classes="power-info",
             ))
             scroll.mount(Static("Confirm:", classes="power-confirm-lbl"))
             scroll.mount(Input(
-                placeholder="Select a command first, then type YES",
+                placeholder="위 버튼을 Enter 로 먼저 선택하세요 (비활성)",
                 id="power-confirm-inp",
                 disabled=True,
             ))
@@ -2794,42 +2809,61 @@ class MnxConfigScreen(BaseScreen):
 
         if action == "reboot":
             self._set_status("[yellow]Rebooting the system...[/]")
-            self.app.notify("Rebooting the system. Connection will be lost shortly.", title="Reboot", severity="warning")
-            import threading as _threading
-            def _do_reboot():
-                import time as _time
-                _time.sleep(1.5)
-                try:
-                    subprocess.run(
-                        ["sudo", "-n", "/sbin/reboot"],
-                        capture_output=True, timeout=10,
-                    )
-                except Exception as _e:
-                    self.app.call_from_thread(
-                        self._set_status, f"[red]Reboot error: {_e}[/]", True
-                    )
-            _threading.Thread(target=_do_reboot, daemon=True).start()
+            self.app.notify("Rebooting the system. Connection will be lost shortly.",
+                            title="Reboot", severity="warning")
+            self._power_run(["sudo", "-n", "/sbin/reboot"], "Reboot")
 
         elif action == "shutdown":
             self._set_status("[red]Shutting down the system...[/]")
-            self.app.notify("Shutting down the system. Connection will be lost shortly.", title="Shutdown", severity="error")
-            import threading as _threading
-            def _do_shutdown():
-                import time as _time
-                _time.sleep(1.5)
-                try:
-                    subprocess.run(
-                        ["sudo", "-n", "/sbin/shutdown", "-h", "now"],
-                        capture_output=True, timeout=10,
-                    )
-                except Exception as _e:
-                    self.app.call_from_thread(
-                        self._set_status, f"[red]Shutdown error: {_e}[/]", True
-                    )
-            _threading.Thread(target=_do_shutdown, daemon=True).start()
+            self.app.notify("Shutting down the system. Connection will be lost shortly.",
+                            title="Shutdown", severity="error")
+            self._power_run(["sudo", "-n", "/sbin/shutdown", "-h", "now"], "Shutdown")
 
         else:
             self._set_status("[bright_black]No command selected.[/]")
+
+    def _power_run(self, cmd: list, label: str) -> None:
+        """전원 명령을 백그라운드로 실행하고 **실패를 반드시 화면에 보고**한다.
+
+        기존 구현은 returncode 를 검사하지 않아, sudo 정책 변경/명령 부재 등으로
+        실패해도 "Rebooting the system..." 만 남고 아무 일도 일어나지 않았다
+        (= 사용자에게는 '미실행'으로 보임). 실패 시 stderr 를 노출하고 confirm
+        필드를 다시 열어 재시도할 수 있게 한다.
+        """
+        import threading as _threading
+
+        def _worker():
+            import time as _time
+            _time.sleep(1.5)     # 알림이 보이도록 잠깐 대기
+            try:
+                r = subprocess.run(cmd, capture_output=True, timeout=15)
+                if r.returncode != 0:
+                    err = r.stderr.decode("utf-8", errors="replace").strip()
+                    self.app.call_from_thread(
+                        self._power_report_failure, label,
+                        err or f"exit code {r.returncode}"
+                    )
+            except Exception as _e:
+                self.app.call_from_thread(
+                    self._power_report_failure, label, str(_e)
+                )
+
+        _threading.Thread(target=_worker, daemon=True).start()
+
+    def _power_report_failure(self, label: str, err: str) -> None:
+        """전원 명령 실패를 상태줄·토스트에 표시하고 재시도 가능 상태로 되돌린다."""
+        self.log.error(f"{label} failed: {err}")
+        self._set_status(f"{label} 실패: {markup_escape(err)}", error=True)
+        self.app.notify(f"{label} 실패\n{err}", title=label, severity="error", timeout=30)
+        # 다시 시도할 수 있도록 버튼 선택 상태로 복귀
+        try:
+            self.query_one("#power-confirm-inp", Input).disabled = True
+        except Exception:
+            pass
+        try:
+            self.query_one("#btn-reboot", Button).focus()
+        except Exception:
+            pass
 
     # ═══════════════════════════════════════════════════════════════════════════
     # UFW section methods
