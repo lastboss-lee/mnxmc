@@ -12,7 +12,7 @@ SSH 접속 시 로그인 건너뛰고 대시보드 직행.
 - 세션 관리
 
 Author: MNX Team
-Version: 2.3.2
+Version: 2.3.3
 """
 
 import sys
@@ -551,7 +551,7 @@ def print_startup_banner(username: str):
     print("║   ██║ ╚═╝ ██║██║ ╚████║██╔╝ ██╗                            ║")
     print("║   ╚═╝     ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝                            ║")
     print("║                                                            ║")
-    print("║          MNX Management Console v2.3.2                     ║")
+    print("║          MNX Management Console v2.3.3                     ║")
     print("║          SANDS LAB Inc. NDR Solution                       ║")
     print("║                                                            ║")
     print("╚════════════════════════════════════════════════════════════╝")
