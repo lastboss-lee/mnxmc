@@ -19,6 +19,7 @@ from textual.containers import Container, Vertical
 from textual.binding import Binding
 from textual import on
 from app.ui.screen import BaseScreen, Sidebar
+from rich.markup import escape as _esc
 import subprocess
 import threading
 from datetime import datetime
@@ -630,10 +631,6 @@ class ServiceScreen(BaseScreen):
           로그 start/ok        : green
         """
         import re
-        try:
-            from rich.markup import escape as _esc
-        except ImportError:
-            def _esc(s): return s  # fallback: no escaping
 
         # 로그 줄 패턴: "Jan  1 12:34:56 host svc[pid]: msg"
         _LOG = re.compile(
