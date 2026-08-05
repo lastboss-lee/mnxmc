@@ -27,10 +27,28 @@
 | textual | 8.2.1 | TUI 프레임워크 |
 | rich | 14.3.3 | 터미널 렌더링 |
 | requests / urllib3 | 2.33.1 / 2.6.3 | ES 모니터 HTTP |
-| cryptography | >=43,<46 | mnx_config Fernet 암호(시스템 패키지 의존) |
+| cryptography | >=43,<46 | **현재 코드에서 사용하지 않음** — 아래 주의 참고 |
 | pygments, markdown-it-py, mdit-py-plugins, linkify-it-py, platformdirs, typing_extensions | (핀) | 렌더/유틸 |
 
 > 오프라인 설치: `pip install --no-index --find-links ./packages/pip`. **cryptography는 시스템 설치 의존**(whl 미포함) → 설치 환경 차이 시 실패 위험.
+
+> ⚠ **cryptography / 자격증명 저장 현황 (2026-08-05 확인)**
+>
+> 이전 문서는 이 항목을 "mnx_config Fernet 암호" 로 기술했으나 **사실과 다르다.**
+> `cryptography` 와 `Fernet` 은 리포지토리 `.py` 전체에서 참조 0건이고, 실제 구현은
+> `app/screens/mnx_config.py:43-56` 의 **base64 인코딩**(`ENC:` 접두어)이다.
+> 코드 docstring 은 정확하게 "obfuscation" 이라고 적고 있다 — 암호화가 아니다.
+>
+> 관련 사실:
+> - 저장 위치 `/opt/mnx/etc/config.ini` 의 권한이 **644 (world-readable)** 이므로,
+>   Elasticsearch `auth_pw` 는 로컬 사용자 누구나 읽고 즉시 되돌릴 수 있다.
+> - `cryptography` whl 은 `packages/pip/` 에 **미포함**이라 에어갭 설치가 이 핀 때문에
+>   실패할 수 있다(코드가 쓰지도 않는 의존성 때문에).
+>
+> 결정 대기 — 핀을 지우면 "base64 = 암호화" 를 묵인하는 것이 되므로 그대로 둔다.
+> 선택지: (a) 파일 권한을 640/600 으로 조이기(engine 이 config.ini 를 비root 로 읽는지
+> 확인 필요), (b) 실제 암호화 도입(키 보관 위치 설계 + 기존 `ENC:` 값 마이그레이션
+> 필요, 로컬 root 위협에는 무의미), (c) 난독화임을 명시하고 핀 제거.
 
 ### 2.2 file_analysis_ai (ML)
 | 패키지 | 용도 | 근거 |
