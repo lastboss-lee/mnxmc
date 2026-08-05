@@ -5,7 +5,7 @@ MNX Management Console Login Screen.
 Shadow-only authentication (no su fallback when running as root).
 
 Author: MNX Team
-Version: 2.3.5
+Version: 2.3.6
 """
 
 from textual.app import ComposeResult
@@ -326,7 +326,7 @@ class LoginScreen(Screen):
         with Center():
             with Container(id="main-box"):
                 yield Static(self._logo(), id="logo")
-                yield Static("Management Console v2.3.5", id="version")
+                yield Static("Management Console v2.3.6", id="version")
                 yield Static("SANDSLAB Inc.  NDR Solution", id="company")
                 
                 with Horizontal(classes="row"):
