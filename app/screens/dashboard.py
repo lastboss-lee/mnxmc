@@ -338,7 +338,16 @@ class MnxConfigAuthScreen(Screen):
                 self.query_one("#auth-error", Static).update("Type 'confirm' exactly")
 
         elif self._stage == "password":
-            username = getattr(self.app, 'authenticated_user', 'root') or 'root'
+            # 'root' 기본값 금지 — 세션 사용자를 특정할 수 없을 때 root 비밀번호로
+            # 권한 작업을 승인하게 된다(인증 대상 계정이 조용히 바뀜). 특정 불가면
+            # 거부한다.
+            username = getattr(self.app, 'authenticated_user', None)
+            if not username:
+                self.query_one("#auth-error", Static).update(
+                    "세션 사용자를 확인할 수 없습니다. 다시 로그인하세요."
+                )
+                event.input.value = ""
+                return
             success, error = self._auth.authenticate(username, event.value)
             if success:
                 from app.screens.mnx_config import MnxConfigScreen

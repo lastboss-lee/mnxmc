@@ -825,10 +825,14 @@ class ServiceScreen(BaseScreen):
                     "Type 'confirm' exactly")
 
         elif self._dialog_stage == "password":
-            try:
-                username = getattr(self.app, 'authenticated_user', 'root')
-            except Exception:
-                username = 'root'
+            # 'root' 기본값 금지 — 세션 사용자를 특정할 수 없을 때 root 비밀번호로
+            # 서비스 제어를 승인하게 된다(인증 대상 계정이 조용히 바뀜).
+            username = getattr(self.app, 'authenticated_user', None)
+            if not username:
+                self.query_one("#dialog-error", Static).update(
+                    "세션 사용자를 확인할 수 없습니다. 다시 로그인하세요.")
+                event.input.value = ""
+                return
 
             success, error = self._auth.authenticate(username, event.value)
             if success:
