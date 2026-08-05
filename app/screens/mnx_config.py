@@ -886,18 +886,22 @@ class MnxConfigScreen(BaseScreen):
             pass
         if section_key == "disk_perf":
             self._show_disk_perf_section()
+            self._queue_focus_first_control()
             return
 
         if section_key == "sys_power":
             self._show_sys_power_section()
+            self._queue_focus_first_control()
             return
 
         if section_key.startswith("fw_"):
             self._show_ufw_section(section_key)
+            self._queue_focus_first_control()
             return
 
         if section_key == "capture":
             self._show_capture_section()
+            self._queue_focus_first_control()
             return
 
         self._current_section = section_key
@@ -951,6 +955,55 @@ class MnxConfigScreen(BaseScreen):
 
         if section_key == "svcctrl":
             self.call_after_refresh(self._mount_svcctrl_info)
+
+        self._queue_focus_first_control()
+
+    # ── 섹션 진입 시 첫 조작 대상 자동 포커스 ─────────────────────────────────
+    #
+    # 사이드바에서 섹션을 고르면 포커스가 Sidebar ListView 에 그대로 남는다.
+    # 포커스 순서가 [ListView, #form-scroll, <첫 컨트롤>, ...] 이라 폼/버튼에
+    # 닿으려면 Tab 을 2회 눌러야 했고, 중간의 #form-scroll 은 포커스 표시가 없어
+    # 사용자에겐 "Tab 을 눌렀는데 아무 변화 없음 → Enter 도 무반응" 으로 보였다.
+    # tty1 콘솔은 마우스가 없어 실질적으로 도달 불가였다.
+    # (Power Control 에서 "선택 시 메시지·팝업 없음" 으로 보고된 문제의 원인)
+    # 14개 섹션 중 13개가 동일 상태였으므로 _show_section 한 곳에서 처리한다.
+
+    def _queue_focus_first_control(self) -> None:
+        """렌더 완료 후 첫 조작 대상으로 포커스를 옮긴다."""
+        self.set_timer(0.1, self._focus_first_control)
+
+    def _focus_first_control(self) -> None:
+        """#form-scroll 안의 첫 포커스 가능 위젯에 포커스를 준다.
+
+        Textual 이 계산한 focus_chain 을 그대로 쓰므로 disabled·비표시 위젯은
+        자동으로 제외된다(예: sys_power 의 confirm Input 은 disabled 이라
+        btn-reboot 가 선택됨). 조작 대상이 없는 섹션(disk_perf)은 no-op.
+        """
+        try:
+            scroll = self.query_one("#form-scroll")
+        except Exception:
+            return
+
+        # Input 은 포커스 시 값 전체가 선택된다(select_on_focus 기본 True).
+        # 설정 편집 화면에서 이 동작은 위험하다 — 의도 없이 누른 키 한 번에 기존
+        # 설정값이 통째로 교체된다(자동 포커스가 생기면서 더 쉽게 발생).
+        # 섹션 내 모든 Input 에서 끄고, 커서는 값 끝에 둔다(첫 필드만 다르게
+        # 동작하는 비일관을 피하기 위해 Tab 으로 닿는 필드까지 일괄 적용).
+        # ⚠ focus() 는 Focus 를 큐에 넣기만 하므로 focus() **전에** 꺼야 한다.
+        for inp in scroll.query(Input):
+            inp.select_on_focus = False
+
+        for widget in self.focus_chain:
+            if widget is scroll:
+                continue
+            node = widget.parent
+            while node is not None:
+                if node is scroll:
+                    widget.focus()
+                    if isinstance(widget, Input):
+                        widget.cursor_position = len(widget.value)
+                    return
+                node = node.parent
 
     # ── Capture 인터페이스 배열 에디터 ─────────────────────────────────────────
     #
@@ -2703,18 +2756,8 @@ class MnxConfigScreen(BaseScreen):
             "Power Control — Reboot/Shutdown 선택(Enter) → confirm 필드에 YES 입력 후 Enter"
         )
         self._render_sys_power_section()
-        # tty1 콘솔은 마우스가 없다. 섹션 진입 시 Reboot 버튼에 바로 포커스를 줘서
-        # Tab 으로 버튼을 찾아 헤매지 않게 한다(포커스 순서상 Tab 2회 필요했음).
-        self.set_timer(0.1, self._power_focus_first_button)
-
-    def _power_focus_first_button(self) -> None:
-        """sys_power 진입 시 Reboot 버튼으로 포커스 이동."""
-        if self._current_section != "sys_power":
-            return
-        try:
-            self.query_one("#btn-reboot", Button).focus()
-        except Exception:
-            pass
+        # 진입 시 첫 조작 대상(btn-reboot) 자동 포커스는 _show_section 이
+        # _queue_focus_first_control() 로 일괄 처리한다.
 
     def _render_sys_power_section(self) -> None:
         try:
