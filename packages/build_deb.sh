@@ -72,7 +72,7 @@ rsync -a \
 ok "packages/ 복사 완료"
 ok "  apt  : $(ls "$MNXMC/packages/apt/"*.deb 2>/dev/null | wc -l)개"
 ok "  pip  : $(ls "$MNXMC/packages/pip/"*.whl 2>/dev/null | wc -l)개"
-ok "  perccli: $(ls "$MNXMC/packages/perccli/opt/MegaRAID/perccli/" 2>/dev/null | wc -l)개 바이너리"
+ok "  perccli: $(ls "$MNXMC/packages/perccli/"perccli* 2>/dev/null | wc -l)개 바이너리"
 
 # ── [3/3] 권한 설정 (755/644) ────────────────────────────────────
 echo "[3/3] 권한 설정 중 (디렉토리 755, 파일 644, 실행파일 755)..."

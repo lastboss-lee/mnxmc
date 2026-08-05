@@ -358,21 +358,3 @@ class SystemInfo(BaseModule):
         overview['memory'].update(memory_usage)
         
         return overview
-
-    def run(self):
-        """í…ŒìŠ¤íŠ¸ ì‹¤í–‰"""
-        self.clear_screen()
-        print("=== System Information Manager ===\n")
-        
-        info = self.get_system_overview()
-        
-        print(f"System: {info['system']['product_name']}")
-        print(f"Hostname: {info['hostname']}")
-        print(f"Uptime: {info['uptime']}")
-        print(f"CPU: {info['cpu']['model'][:50]}")
-        print(f"Memory: {info['memory']['total_gb']:.1f} GB")
-        print(f"Network Interfaces: {len(info['network'])}")
-        print(f"Last scan: {time.ctime(info['scan_time'])}")
-        
-        print("\nPress F7 to rescan system information...")
-        self.wait_for_key()

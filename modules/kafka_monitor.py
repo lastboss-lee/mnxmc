@@ -110,30 +110,3 @@ class KafkaMonitor(BaseModule):
             'raw_data': realtime_data.get('raw_data', []),
             'error': realtime_data.get('error', '')
         }
-    
-    def run(self):
-        """터미널 모드 실행 (기존 호환성)"""
-        self.clear_screen()
-        print("=== Kafka Monitor ===")
-        
-        if self.is_running():
-            print("✓ Kafka 서비스가 실행 중입니다.\n")
-            
-            data = self.get_mnx_group_realtime()
-            if data['success']:
-                print(f"[MNX Consumer Group Status] - {data['timestamp']}\n")
-                print(f"{'Partition':<12} {'Current':<15} {'End':<15} {'Lag':<10} {'Consumer ID':<20}")
-                print("-" * 80)
-                
-                for item in data['raw_data']:
-                    print(f"{item['partition']:<12} {item['current_offset']:<15} "
-                          f"{item['log_end_offset']:<15} {item['lag']:<10} "
-                          f"{item['consumer_id']:<20}")
-            else:
-                print(f"✗ 오류: {data.get('error', 'Unknown error')}")
-        else:
-            print("✗ Kafka 서비스에 연결할 수 없습니다.")
-            print("  - localhost:9092 연결 확인 필요")
-            print("  - Kafka 서비스 상태 확인 필요")
-        
-        self.wait_for_key()
