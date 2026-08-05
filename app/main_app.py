@@ -12,7 +12,7 @@ Features:
     - 로그 뷰어
 
 Author: MNX Development Team
-Version: 2.3.4
+Version: 2.3.5
 """
 
 import sys
