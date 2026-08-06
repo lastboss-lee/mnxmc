@@ -87,6 +87,12 @@ Sidebar ListItem {
     background: transparent;
 }
 
+/* 폭(26)을 넘는 라벨은 줄바꿈 대신 말줄임 — 줄바꿈 시 항목이 2줄로 깨진다 */
+Sidebar ListItem Static {
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 Sidebar ListItem:hover {
     background: #1c2530;      /* Color.HOVER */
 }

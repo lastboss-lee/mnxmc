@@ -700,9 +700,13 @@ class NetworkScreen(BaseScreen):
     # ── Helper methods ──
 
     def _get_iface_mode_tag(self, iface) -> str:
-        """인터페이스 모드 태그 반환. PROMISC = 항상 mirror."""
+        """인터페이스 모드 태그 반환. PROMISC = 항상 mirror.
+
+        사이드바 폭이 26(내부 22)이라 '(mirror)' 전체는 긴 이름(enp101s0f1 등)에서
+        줄바꿈을 일으킨다. 축약 '(m)' 로 표기한다(상세는 우측 패널에 표시).
+        """
         if getattr(iface, 'promisc', False):
-            return " [magenta](mirror)[/]"
+            return " [magenta](m)[/]"
         return ""
 
     def _get_status_icon(self, status: str) -> str:
