@@ -4,19 +4,24 @@
 # MNX Package Installer — apt + pip + storcli + perccli 원스톱 설치
 #
 # [용도] 오프라인 환경 설치 (네트워크 불필요)
-# [사용법] sudo bash install_packages.sh
+# [사용법] sudo bash install_packages.sh      ← OS 자동 판별
+#
+# [지원 OS] Ubuntu 22.04 (jammy) / Ubuntu 26.04 (resolute)
+#   apt 패키지 세트는 OS 별로 분리되어 있고 /etc/os-release 의 VERSION_CODENAME
+#   으로 자동 선택한다. python3.12 런타임과 pip/*.whl 은 두 OS 공용이다.
 #
 # [디렉토리 구조 (이 스크립트 기준)]
 #   packages/
 #     ├── install_packages.sh       ← 이 파일
-#     ├── apt/    *.deb             ← python3.12, smartmontools 등 + 의존성
-#     ├── pip/    *.whl             ← textual, rich 등
+#     ├── apt/jammy/    *.deb       ← Ubuntu 22.04 용 (python3.12 + 의존성)
+#     ├── apt/resolute/ *.deb       ← Ubuntu 26.04 용 (python3.12 + 의존성)
+#     ├── pip/    *.whl             ← textual, rich 등 (공용)
+#     ├── config/ *.conf, *.service ← getty override, promisc@ 템플릿 유닛
 #     ├── storcli/ *.deb           ← storcli 패키지 (MegaRAID/LSI 계열)
 #     └── perccli/ perccli perccli64  ← Dell PERC 바이너리
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APT_DIR="$SCRIPT_DIR/apt"
 PIP_DIR="$SCRIPT_DIR/pip"
 STORCLI_DIR="$SCRIPT_DIR/storcli"
 PERCCLI_DIR="$SCRIPT_DIR/perccli"
@@ -35,9 +40,54 @@ ok()   { echo -e "  ${GREEN}[OK]${NC}    $*"; }
 warn() { echo -e "  ${YELLOW}[WARN]${NC}  $*"; }
 fail() { echo -e "  ${RED}[FAIL]${NC}  $*"; }
 
+# ── OS 판별 (22.04 / 26.04 apt 패키지 세트 분리) ─────────────────────────────
+. /etc/os-release 2>/dev/null
+OS_CODENAME="${VERSION_CODENAME:-unknown}"
+OS_VERSION="${VERSION_ID:-unknown}"
+OS_PRETTY="${PRETTY_NAME:-$OS_CODENAME}"
+
+case "$OS_CODENAME" in
+    jammy)    TIME_DAEMON="ntp" ;;      # 22.04
+    resolute) TIME_DAEMON="chrony" ;;   # 26.04 — ntp 패키지 제거됨
+    *)
+        fail "지원하지 않는 OS: $OS_PRETTY ($OS_VERSION / $OS_CODENAME)"
+        echo "       지원 OS: Ubuntu 22.04 (jammy), Ubuntu 26.04 (resolute)"
+        echo "       패키지 세트를 먼저 준비하세요:"
+        echo "         bash packages/download_pkg.sh --suite <codename>"
+        exit 1
+        ;;
+esac
+
+# ── sudo 구현 판별 ──────────────────────────────────────────────────────────
+# Ubuntu 26.04 는 sudo(1.9) 와 sudo-rs 를 모두 설치하고, update-alternatives
+# 우선순위가 sudo-rs 50 > sudo 40 이므로 /usr/bin/sudo 는 sudo-rs 가 된다.
+# sudo-rs 는 sudoers 인자 wildcard 를 파싱 에러로 처리하고 requiretty 등
+# 일부 Defaults 파라미터를 지원하지 않는다 → sudoers_mnxmc 검증이 필수.
+SUDO_REAL="$(readlink -f /etc/alternatives/sudo 2>/dev/null)"
+[ -n "$SUDO_REAL" ] || SUDO_REAL="$(command -v sudo 2>/dev/null)"
+case "$SUDO_REAL" in
+    */cargo/bin/sudo) SUDO_IMPL="sudo-rs" ;;
+    "")               SUDO_IMPL="none" ;;
+    *)                SUDO_IMPL="sudo (1.9)" ;;
+esac
+
+APT_DIR="$SCRIPT_DIR/apt/$OS_CODENAME"
+if [ ! -d "$APT_DIR" ]; then
+    # 구 레이아웃(apt/ 평면 구조) 호환 — 2.3.x 이전 배포본
+    if ls "$SCRIPT_DIR/apt"/*.deb >/dev/null 2>&1; then
+        APT_DIR="$SCRIPT_DIR/apt"
+    else
+        fail "apt 패키지 디렉토리 없음: $SCRIPT_DIR/apt/$OS_CODENAME"
+        echo "       bash packages/download_pkg.sh --suite $OS_CODENAME 로 준비하세요."
+        exit 1
+    fi
+fi
+
 echo ""
 echo "============================================================"
 echo "  MNX Package Installer (Offline)"
+echo "  OS      : $OS_PRETTY  ($OS_CODENAME)"
+echo "  sudo    : $SUDO_IMPL"
 echo "  apt     : $APT_DIR"
 echo "  pip     : $PIP_DIR"
 echo "  storcli : $STORCLI_DIR"
@@ -295,29 +345,69 @@ echo "[5/5] sudoers 설정..."
 SUDOERS_SRC="$SCRIPT_DIR/sudoers_mnxmc"
 SUDOERS_DEST="/etc/sudoers.d/mnxmc"
 
-if [ -f "$SUDOERS_SRC" ]; then
-    # 기존 파일과 내용이 다르거나 없으면 재설치
-    if [ -f "$SUDOERS_DEST" ] && cmp -s "$SUDOERS_SRC" "$SUDOERS_DEST"; then
-        ok "sudoers 이미 최신 상태 — 건너뜀"
-    else
-        cp "$SUDOERS_SRC" "$SUDOERS_DEST"
-        chmod 440 "$SUDOERS_DEST"
-        # 문법 검증
-        if visudo -c -f "$SUDOERS_DEST" 2>/dev/null; then
-            ok "sudoers 설치 완료: $SUDOERS_DEST"
-        else
-            warn "sudoers 문법 오류 — 삭제 후 수동 설치 필요"
-            rm -f "$SUDOERS_DEST"
-        fi
-    fi
+# sudoers 설치는 apply_sudoers.sh 에 단일 구현으로 둔다 (검증-후-복사 로직 중복 방지).
+if [ -f "$SCRIPT_DIR/apply_sudoers.sh" ]; then
+    bash "$SCRIPT_DIR/apply_sudoers.sh" || warn "sudoers 적용 실패 — 위 메시지 확인"
+elif [ -f "$SUDOERS_SRC" ]; then
+    warn "apply_sudoers.sh 없음 — sudoers 미적용 ($SUDOERS_SRC 수동 설치 필요)"
 else
     warn "sudoers_mnxmc 파일 없음 — 건너뜀"
+fi
+
+# ── promisc@ 템플릿 유닛 설치 ────────────────────────────────────────────────
+# mirror 포트 promisc 영속화. 인터페이스마다 유닛 파일을 sudo tee 로 만들던
+# 구 방식은 sudoers 에 인자 wildcard 규칙을 요구해 sudo-rs 에서 깨진다.
+echo ""
+echo "[promisc] promisc@ 템플릿 유닛 설치..."
+
+PROMISC_SRC="$SCRIPT_DIR/config/promisc@.service"
+PROMISC_DEST="/etc/systemd/system/promisc@.service"
+
+if [ -f "$PROMISC_SRC" ]; then
+    install -m 644 -o root -g root "$PROMISC_SRC" "$PROMISC_DEST"
+    systemctl daemon-reload 2>/dev/null || true
+    ok "설치 완료: $PROMISC_DEST"
+
+    # 구 방식(promisc-<iface>.service) 이 남아 있으면 템플릿으로 이관
+    MIGRATED=0
+    for old_unit in /etc/systemd/system/promisc-*.service; do
+        [ -e "$old_unit" ] || continue
+        old_name="$(basename "$old_unit")"
+        iface="${old_name#promisc-}"; iface="${iface%.service}"
+        [ -n "$iface" ] || continue
+        systemctl disable "$old_name" 2>/dev/null || true
+        rm -f "$old_unit"
+        systemctl daemon-reload 2>/dev/null || true
+        systemctl enable --now "promisc@${iface}.service" 2>/dev/null || true
+        ok "  이관: $old_name → promisc@${iface}.service"
+        MIGRATED=$((MIGRATED + 1))
+    done
+    [ "$MIGRATED" -eq 0 ] && ok "  이관 대상 구 유닛 없음"
+else
+    warn "config/promisc@.service 없음 — promisc 영속화 사용 불가"
 fi
 
 
 # ── 검증 ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "[검증]"
+
+# OS / sudo 구현
+ok "OS       : $OS_PRETTY ($OS_CODENAME) — apt 세트: $(basename "$APT_DIR")"
+if [ "$SUDO_IMPL" = "none" ]; then
+    fail "sudo     : 없음 — sands SSH 세션의 권한 상승이 전부 실패합니다"
+else
+    ok "sudo     : $SUDO_IMPL  ($SUDO_REAL)"
+fi
+
+# 시각 동기화 데몬 (22.04=ntp / 26.04=chrony)
+if systemctl is-active --quiet "$TIME_DAEMON" 2>/dev/null; then
+    ok "timesync : $TIME_DAEMON active"
+elif systemctl is-active --quiet systemd-timesyncd 2>/dev/null; then
+    warn "timesync : $TIME_DAEMON 비활성 — systemd-timesyncd 가 대신 동작 중"
+else
+    warn "timesync : $TIME_DAEMON 및 systemd-timesyncd 모두 비활성"
+fi
 
 # timezone
 TZ_CHECK=$(timedatectl show --property=Timezone --value 2>/dev/null)
@@ -404,6 +494,25 @@ if [ -f "$RAID_CFG" ]; then
     ok "raid.cfg  : RAID_TYPE=${RCFG_TYPE}, RAID_CLI=${RCFG_CLI}"
 else
     warn "raid.cfg 없음: $RAID_CFG (수동 생성 또는 컨트롤러 미감지)"
+fi
+
+# sudoers
+if [ -f "$SUDOERS_DEST" ]; then
+    if visudo -c -f "$SUDOERS_DEST" >/dev/null 2>&1; then
+        ok "sudoers  : $SUDOERS_DEST ($(grep -c '^sands' "$SUDOERS_DEST")개 규칙, $SUDO_IMPL 통과)"
+    else
+        fail "sudoers  : $SUDOERS_DEST 파싱 실패 ($SUDO_IMPL) — sands 권한 전체 무효"
+    fi
+else
+    warn "sudoers  : $SUDOERS_DEST 없음 — sands SSH 세션 기능 제한"
+fi
+
+# promisc@ 템플릿 유닛
+if [ -f "$PROMISC_DEST" ]; then
+    ACTIVE_PROMISC=$(systemctl list-units --all --no-legend 'promisc@*' 2>/dev/null | wc -l)
+    ok "promisc  : $PROMISC_DEST (활성 인스턴스 ${ACTIVE_PROMISC}개)"
+else
+    warn "promisc  : $PROMISC_DEST 없음 — mirror 포트 promisc 영속화 불가"
 fi
 
 # ── getty@tty1 오버라이드 설정 ────────────────────────────────────────────────

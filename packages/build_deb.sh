@@ -67,10 +67,17 @@ rsync -a \
     --exclude='.claude/' \
     --exclude='lock' \
     --exclude='partial' \
+    --exclude='*.swp' \
+    --exclude='*.log' \
     "$SCRIPT_DIR/" "$MNXMC/packages/"
 
 ok "packages/ 복사 완료"
-ok "  apt  : $(ls "$MNXMC/packages/apt/"*.deb 2>/dev/null | wc -l)개"
+# apt 세트는 OS 별로 분리되어 있다 (install_packages.sh 가 VERSION_CODENAME 으로 선택).
+# deb 하나에 두 세트를 모두 담아 22.04/26.04 어느 쪽에서도 같은 산출물로 설치한다.
+for suite_dir in "$MNXMC/packages/apt"/*/; do
+    [ -d "$suite_dir" ] || continue
+    ok "  apt/$(basename "$suite_dir") : $(ls "$suite_dir"*.deb 2>/dev/null | wc -l)개"
+done
 ok "  pip  : $(ls "$MNXMC/packages/pip/"*.whl 2>/dev/null | wc -l)개"
 ok "  perccli: $(ls "$MNXMC/packages/perccli/"perccli* 2>/dev/null | wc -l)개 바이너리"
 

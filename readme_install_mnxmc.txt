@@ -152,12 +152,24 @@ MNXMC는 MNX NDR 시스템을 운영하는 Ubuntu 서버에서 사용하는 TUI 
   ------------------------------------------------------------------------------
   [1/13] apt 패키지 설치
   ------------------------------------------------------------------------------
-  /mnxmc/packages/apt/ 폴더의 .deb 파일을 오프라인으로 설치합니다.
+  /mnxmc/packages/apt/<codename>/ 폴더의 .deb 파일을 오프라인으로 설치합니다.
   python3.12, smartmontools, ethtool, dmidecode, curl 등 포함.
+
+  apt 패키지 세트는 OS 별로 분리되어 있고, /etc/os-release 의 VERSION_CODENAME
+  으로 자동 선택됩니다.
+
+    packages/apt/jammy/     Ubuntu 22.04  (시각동기화: ntp)
+    packages/apt/resolute/  Ubuntu 26.04  (시각동기화: chrony — ntp 패키지 제거됨)
 
     - 이미 동일 버전 이상이 설치된 패키지는 자동 skip
     - 의존성 순서 오류 발생 시 최대 3회 재시도
     - 네트워크 없이 동작 (apt source 비활성화)
+    - 지원 목록에 없는 OS 는 오설치를 막기 위해 즉시 종료합니다
+
+  ※ python3.12 는 두 OS 모두 deadsnakes PPA 빌드를 사용합니다
+    (22.04 의 시스템 python3 은 3.10, 26.04 는 3.14).
+    런타임을 3.12 로 통일해야 pip/*.whl 세트와 /usr/bin/python3.12 경로를
+    양쪽에서 그대로 쓸 수 있고, crypt/spwd 표준 모듈(3.13 에서 제거)도 유지됩니다.
 
   ------------------------------------------------------------------------------
   [2/13] pip 패키지 설치
@@ -165,7 +177,7 @@ MNXMC는 MNX NDR 시스템을 운영하는 Ubuntu 서버에서 사용하는 TUI 
   /mnxmc/packages/pip/ 폴더의 .whl 파일을 오프라인으로 설치합니다.
   textual, rich, requests 포함.
 
-    - python3.12 기준 설치
+    - python3.12 기준 설치 (22.04 / 26.04 공용 .whl 세트)
     - PEP 668 환경(Ubuntu 23.04+) 자동 대응
 
   ------------------------------------------------------------------------------
@@ -334,11 +346,16 @@ MNXMC는 MNX NDR 시스템을 운영하는 Ubuntu 서버에서 사용하는 TUI 
   ------------------------------------------------------------------------------
   스크립트 완료 시 다음 항목을 자동 점검합니다.
 
+    OS 및 선택된 apt 세트 (jammy / resolute)
+    sudo 구현 (26.04 는 sudo-rs — sudoers 파싱 규칙이 다름)
+    시각동기화 데몬 (22.04 ntp / 26.04 chrony)
     timezone (Asia/Seoul KST)
     python3.12, pip, textual, rich, requests
     curl, ethtool, dmidecode, smartctl
     storcli64, perccli64, perccli 링크
     raid.cfg (RAID 컨트롤러 자동 감지)
+    sudoers (/etc/sudoers.d/mnxmc — 현재 sudo 파서로 문법 재검증)
+    promisc@ 템플릿 유닛 (mirror 포트 promisc 영속화)
 
 
 ================================================================================
