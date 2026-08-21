@@ -186,10 +186,21 @@ else
         dpkg --configure -a 2>/dev/null || true
 
         # 오프라인 모드로 깨진 의존성 복구 (네트워크 사용 안 함)
-        apt-get install -f -y \
+        #
+        # --no-remove 는 필수 가드다. apt source 가 비활성이라 apt 가 깨진
+        # 의존성을 "고치는" 유일한 수단이 패키지 제거이고, -y 가 그걸 무조건
+        # 승인한다. OS 가 어긋난 .deb 세트를 깔면 여기서 ubuntu-minimal,
+        # iproute2, netplan.io, perl, curl 까지 줄줄이 제거된다.
+        # (실측: 2026-08-21 26.04 장비에 22.04 세트를 넣었다가 80개 제거됨)
+        # --no-remove 를 주면 apt 는 제거 대신 실패하고, 아래 경고로 드러난다.
+        if ! apt-get install -f -y \
             -o Dir::Etc::SourceList=/dev/null \
             -o Dir::Etc::SourceParts=/dev/null \
-            --no-install-recommends 2>/dev/null || true
+            --no-install-recommends \
+            --no-remove 2>/dev/null; then
+            warn "의존성 자동 복구 실패 — 패키지를 제거하지 않고 중단했습니다"
+            warn "apt/$OS_CODENAME 세트가 이 OS와 맞는지 확인하세요 (제거 방지 가드 동작)"
+        fi
 
         ok "${INSTALL_COUNT}개 설치 완료 (${SKIP_COUNT}개 skip)"
     fi
@@ -446,6 +457,17 @@ if "$PYTHON" -c "import requests" 2>/dev/null; then
 else
     warn "requests import 실패 (ES 모니터링 비활성화됨)"
 fi
+
+# 네트워크 CLI — MNXMC 네트워크 화면이 절대경로로 하드 의존한다.
+# 이 두 개가 없으면 TUI 는 뜨지만 인터페이스 통계/IP설정/promisc 가 전부 죽는다.
+for netbin in /usr/sbin/ip /usr/sbin/netplan; do
+    if [ -x "$netbin" ]; then
+        ok "$(basename "$netbin") : $netbin"
+    else
+        fail "$(basename "$netbin") 없음: $netbin — Network 화면 동작 불가"
+        echo "       복구: apt-get install --reinstall iproute2 netplan.io"
+    fi
+done
 
 # curl, ethtool, dmidecode
 command -v curl &>/dev/null  && ok "curl : $(curl --version 2>&1 | head -1)" || warn "curl 없음"

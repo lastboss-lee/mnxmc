@@ -63,7 +63,20 @@ COMMON_PKGS=(
     dmidecode
     nfs-common
     ipset
+    # MNXMC Network 화면이 /usr/sbin/ip 절대경로로 하드 의존한다. 보통 배포본에
+    # 항상 깔려 있지만(Priority: important), 에어갭 장비에서 한 번 빠지면 복구
+    # 수단이 없어 세트에 포함한다. 의존 폐쇄가 작아 비용도 낮다.
+    iproute2
 )
+
+# netplan.io 는 의도적으로 제외한다.
+# 코드가 /usr/sbin/netplan 을 쓰지만 의존 폐쇄가 systemd(>=258)·udev·glib 까지
+# 끌고 오고, 그것들을 오프라인 dpkg -i 로 덮는 편이 원래 문제보다 위험하다.
+# netplan.io 가 빠지는 상황은 OS 불일치 설치 사고뿐이고, 그건 install_packages.sh
+# 의 OS 게이트와 apt --no-remove 가드로 막는다.
+# ponytail: netplan 복구는 온라인 apt 에 의존 — 천장은 에어갭 장비에서 netplan
+#   유실. upgrade: netplan.io + netplan-generator + libnetplan1 만 골라
+#   (systemd 제외) 별도 recovery/ 디렉토리로 벤더링.
 
 # suite 별 차이. resolute(26.04) 에서 ntp 패키지는 제거되었고 chrony 로 대체되었다.
 suite_extra_pkgs() {
