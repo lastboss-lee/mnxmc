@@ -548,16 +548,22 @@ class SystemScreen(BaseScreen):
             Description = No Controller found
         따라서 컨트롤러 부재 문구를 함께 배제한다.
         """
+        import os
         import subprocess
+
+        # root 면 sudo 없이, 비root 면 `sudo -n` 으로 실행한다.
+        # `-n` 이 없으면 sudoers 규칙이 빠졌을 때 sudo 가 암호를 물으려 하고
+        # TUI 에는 응답할 tty 가 없어 timeout 까지 멈춘다.
+        prefix = [] if os.geteuid() == 0 else ["sudo", "-n"]
         try:
             if raid_type == "graid":
                 r = subprocess.run(
-                    ["sudo", cli_path, "version"],
+                    [*prefix, cli_path, "version"],
                     capture_output=True, text=True, timeout=10,
                 )
                 return r.returncode == 0
             r = subprocess.run(
-                ["sudo", cli_path, "/call", "show"],
+                [*prefix, cli_path, "/call", "show"],
                 capture_output=True, text=True, timeout=10,
             )
             if "Status = Success" not in r.stdout:
@@ -596,11 +602,10 @@ class SystemScreen(BaseScreen):
             if os.path.isfile(cli_path) and self._probe_cli(raid_type, cli_path):
                 return raid_type, cli_path
 
-        # ── 3순위: 바이너리 존재 여부 fallback ───────────────────────────
-        for raid_type, cli_path in self._RAID_CLI_CANDIDATES:
-            if os.path.isfile(cli_path):
-                return raid_type, cli_path
-
+        # 응답하는 CLI 가 없으면 아무 타입도 단정하지 않는다.
+        # 예전에는 "바이너리 존재 여부" 만으로 fallback 했는데, 그러면 RAID 카드가
+        # 없는 장비(예: VM)에서도 화면에 "RAID Type : MegaRAID (StorCLI)" 를
+        # 띄우고 표만 비워서, 컨트롤러가 있는데 조회 실패한 것처럼 보였다.
         return "", ""
 
     def _get_disk_info(self) -> str:
@@ -610,14 +615,33 @@ class SystemScreen(BaseScreen):
         raid_type, cli = self._load_raid_cfg()
 
         if not cli:
-            return (
-                "[bold cyan]═══ Disk Info ═══[/]\n\n"
-                "[red]RAID CLI를 찾을 수 없습니다.[/]\n\n"
-                "[white]확인 사항:[/]\n"
-                "  • sudo bash /mnxmc/packages/install_packages.sh 실행\n"
-                "  • storcli64 / perccli64 / graidctl 설치 여부 확인\n"
-                f"  • {self._RAID_CFG} 파일 존재 여부 확인\n"
-            )
+            import os as _os
+            installed = [
+                p for _t, p in self._RAID_CLI_CANDIDATES if _os.path.isfile(p)
+            ]
+            content = "[bold cyan]═══ Disk Info ═══[/]\n\n"
+            if installed:
+                # CLI 는 있는데 어느 것도 컨트롤러를 보고하지 않은 경우.
+                # RAID 카드 미탑재 장비(VM 등)에서는 이게 정상 상태다.
+                content += "[yellow]RAID 컨트롤러가 감지되지 않았습니다.[/]\n\n"
+                content += "[white]설치된 CLI (컨트롤러 무응답):[/]\n"
+                for p in installed:
+                    content += f"  • {p}\n"
+                content += (
+                    "\n[bright_black]RAID 카드가 없는 장비라면 정상입니다.\n"
+                    "카드가 있다면 확인:\n"
+                    "  • lspci | grep -i raid  로 카드 인식 여부\n"
+                    "  • 카드 계열에 맞는 CLI 인지 "
+                    "(SAS39xx/9xxx=storcli64, 9600=storcli2, PERC=perccli64)\n"
+                    f"  • {self._RAID_CFG} 로 CLI 직접 지정 가능[/]\n"
+                )
+            else:
+                content += "[red]RAID CLI가 설치되어 있지 않습니다.[/]\n\n"
+                content += "[white]확인 사항:[/]\n"
+                content += "  • sudo bash /mnxmc/packages/install_packages.sh 실행\n"
+                content += "  • storcli64 / perccli64 / graidctl 설치 여부 확인\n"
+                content += f"  • {self._RAID_CFG} 파일 존재 여부 확인\n"
+            return content
 
         type_label = {
             "megaraid":  "MegaRAID (StorCLI)",
