@@ -24,6 +24,7 @@ import subprocess
 import threading
 from datetime import datetime
 import os
+import pwd
 import shutil
 
 
@@ -67,8 +68,22 @@ class AuthenticationManager:
     """
 
     def authenticate(self, username: str, password: str) -> tuple:
-        # ── 1순위: shadow 직접 비교 (root 권한 필요) ──────────────────────
-        if _SHADOW_AUTH_AVAILABLE:
+        # ── 계정 존재 확인은 passwd 로 한다 ───────────────────────────────
+        # /etc/shadow 는 root 만 읽으므로 "계정 없음" 판정에 쓸 수 없다.
+        try:
+            pwd.getpwnam(username)
+        except KeyError:
+            return False, "User not found"
+
+        # ── 1순위: shadow 직접 비교 — root 일 때만 시도한다 ───────────────
+        # 비root 에서 spwd.getspnam() 이 던지는 예외는 OS 에 따라 다르다:
+        #   22.04: nsswitch `shadow: files`         → EACCES 전파 → PermissionError
+        #   26.04: nsswitch `shadow: files systemd` → files 가 EACCES 로 실패하면
+        #          다음 소스(systemd)로 넘어가 "not found" 가 되고 → KeyError
+        # 예전 코드는 KeyError 를 "User not found" 로 즉시 반환해서, 26.04 의
+        # 비root(SSH) 세션에서는 아래 su fallback 에 도달하지 못했다.
+        # 예외 종류에 의존하지 않도록 euid 로 분기한다.
+        if _SHADOW_AUTH_AVAILABLE and os.geteuid() == 0:
             try:
                 shadow = spwd.getspnam(username)
                 stored_hash = shadow.sp_pwdp
@@ -77,12 +92,9 @@ class AuthenticationManager:
                 if crypt.crypt(password, stored_hash) == stored_hash:
                     return True, None
                 return False, "Invalid password"
-            except KeyError:
-                return False, "User not found"
-            except PermissionError:
-                pass  # non-root → su fallback으로
             except Exception:
-                pass
+                # shadow 를 읽지 못한 root 는 인증을 통과시키지 않는다.
+                return False, "Authentication failed"
 
         # ── 2순위: su PAM fallback (non-root 전용) ─────────────────────────
         # root로 실행 중이면 su는 패스워드 없이 통과하므로 사용 금지

@@ -33,3 +33,4 @@ infra_audit/tmp/
 # 단, 조치 전 /etc 원본 스냅샷은 롤백·KISA 감사 증적이므로 추적을 유지한다.
 # (`*.bak` 은 위에서 무시되지만 이미 index 에 있는 파일에는 영향 없음)
 !infra_audit/**/backup_*/
+*.log.[0-9]*
