@@ -28,6 +28,8 @@ PERCCLI_DIR="$SCRIPT_DIR/perccli"
 PYTHON="python3.12"
 STORCLI_BIN="/opt/MegaRAID/storcli/storcli64"
 STORCLI_LINK="/usr/local/bin/storcli64"
+STORCLI2_BIN="/opt/MegaRAID/storcli2/storcli2"
+STORCLI2_LINK="/usr/local/bin/storcli2"
 PERCCLI_DEST="/opt/MegaRAID/perccli"
 PERCCLI_BIN="$PERCCLI_DEST/perccli"
 PERCCLI64_BIN="$PERCCLI_DEST/perccli64"
@@ -295,23 +297,56 @@ echo ""
 # ── [3/4] StorCLI 설치 ───────────────────────────────────────────────────────
 echo "[3/4] StorCLI 설치..."
 
-STORCLI_DEB=$(ls "$STORCLI_DIR"/*.deb 2>/dev/null | head -1)
-
-if [ -z "$STORCLI_DEB" ]; then
+# storcli/ 에는 지원 컨트롤러가 다른 두 패키지가 섞여 있다:
+#   storcli  (007.x) → /opt/MegaRAID/storcli/storcli64
+#                      MegaRAID 12G SAS (SAS39xx/93xx/94xx/95xx, 예: 9560-8i)
+#   storcli2 (008.x) → /opt/MegaRAID/storcli2/storcli2
+#                      MegaRAID 9600 계열 (SAS4116)
+# 둘은 서로를 대체하지 않으므로 모두 설치해야 한다.
+#
+# 기존 코드는 `ls "$STORCLI_DIR"/*.deb | head -1` 로 하나만 골랐고,
+# 알파벳순에서 'storcli2_' 가 'storcli_' 보다 앞서므로('2'=0x32 < '_'=0x5F)
+# 항상 storcli2 만 설치되고 storcli 는 설치되지 않았다.
+# 실측(MegaRAID 9560-8i): storcli2 → "Number of Controllers = 0",
+#                         storcli 007.2203 → "Product Name = MegaRAID 9560-8i 4GB".
+# 즉 이 버그 때문에 SAS39xx 카드가 Disk Info 에서 인식되지 않았다.
+if ! ls "$STORCLI_DIR"/*.deb >/dev/null 2>&1; then
     warn "storcli/ 폴더에 .deb 파일 없음 — 건너뜀"
 else
-    echo "  → $(basename "$STORCLI_DEB") 설치 중..."
-    dpkg -i "$STORCLI_DEB" 2>/dev/null \
-        || dpkg --force-depends -i "$STORCLI_DEB" 2>/dev/null || true
-    dpkg --configure -a 2>/dev/null || true
+    # 같은 패키지명이 여러 버전 있으면(storcli 007.1912 / 007.2203) 최고 버전만
+    declare -A SC_DEB=() SC_VER=()
+    for deb in "$STORCLI_DIR"/*.deb; do
+        pkg=$(dpkg-deb -f "$deb" Package 2>/dev/null) || continue
+        ver=$(dpkg-deb -f "$deb" Version 2>/dev/null)
+        [ -n "$pkg" ] || continue
+        if [ -z "${SC_VER[$pkg]:-}" ] \
+           || dpkg --compare-versions "$ver" gt "${SC_VER[$pkg]}" 2>/dev/null; then
+            SC_VER["$pkg"]="$ver"; SC_DEB["$pkg"]="$deb"
+        fi
+    done
+
+    for pkg in "${!SC_DEB[@]}"; do
+        deb="${SC_DEB[$pkg]}"
+        echo "  → $pkg ${SC_VER[$pkg]} 설치 중 ($(basename "$deb"))..."
+        dpkg -i "$deb" >/dev/null 2>&1 \
+            || dpkg --force-depends -i "$deb" >/dev/null 2>&1 || true
+    done
+    dpkg --configure -a >/dev/null 2>&1 || true
 
     if [ -f "$STORCLI_BIN" ]; then
         ln -sf "$STORCLI_BIN" "$STORCLI_LINK"
         chmod +x "$STORCLI_LINK"
-        ok "storcli64 설치 완료"
-        ok "심볼릭 링크: $STORCLI_LINK → $STORCLI_BIN"
+        ok "storcli64 : $STORCLI_LINK → $STORCLI_BIN"
     else
-        warn "바이너리 없음: $STORCLI_BIN (설치 확인 필요)"
+        warn "storcli64 바이너리 없음: $STORCLI_BIN"
+    fi
+
+    if [ -f "$STORCLI2_BIN" ]; then
+        ln -sf "$STORCLI2_BIN" "$STORCLI2_LINK"
+        chmod +x "$STORCLI2_LINK"
+        ok "storcli2  : $STORCLI2_LINK → $STORCLI2_BIN"
+    else
+        warn "storcli2 바이너리 없음: $STORCLI2_BIN"
     fi
 fi
 
@@ -351,11 +386,20 @@ echo "[raid.cfg] CLI 실행 응답 기반 RAID 컨트롤러 감지 중..."
 RAID_CFG="/mnxmc/raid.cfg"
 mkdir -p /mnxmc
 
-# storcli/perccli probe: "/call show" 출력에 "Status = Success" 포함 확인
+# storcli/perccli probe: "/call show" 가 실제 컨트롤러를 보고하는지 확인.
+#
+# "Status = Success" 만 보면 오탐한다. 실측: 지원 대상이 아닌 컨트롤러에 대해
+#   $ storcli2 /call show
+#   Status = Success
+#   Description = No Controller found
+# 처럼 성공을 리턴하므로, 컨트롤러 부재 문구를 함께 배제해야 한다.
 _probe_cli() {
-    local cli="$1"
+    local cli="$1" out
     [ -f "$cli" ] || return 1
-    "$cli" /call show 2>/dev/null | grep -q "Status = Success"
+    out="$("$cli" /call show 2>/dev/null)" || return 1
+    echo "$out" | grep -q "Status = Success"        || return 1
+    echo "$out" | grep -qi "No Controller found"    && return 1
+    return 0
 }
 
 # graidctl probe: `version` 명령 정상 종료 확인 (드라이버/서비스 로드 필요)
@@ -387,6 +431,18 @@ RAID_TYPE=graid
 RAID_CLI=$GRAIDCTL_BIN
 EOF
     ok "raid.cfg 생성: GRAID SupremeRAID 응답 확인 → $GRAIDCTL_BIN"
+
+elif _probe_cli "$STORCLI2_LINK"; then
+    # MegaRAID 9600(SAS4116) 계열. storcli2 는 CLI 문법과 출력 형식이
+    # storcli 007.x 와 달라서 Disk Info 파싱을 그대로 쓸 수 없다.
+    # 잘못된 RAID_TYPE 으로 raid.cfg 를 쓰면 화면에 에러만 뜨므로 쓰지 않고
+    # 운영자에게 알린다 (CLI 자체는 심볼릭 링크로 사용 가능).
+    # ponytail: 9600 계열 Disk Info 미지원 — 천장은 해당 카드 장비 도입.
+    #   upgrade: app/screens/system.py 에 raid_type "megaraid_gen5" 추가 +
+    #            storcli2 문법(/c0/vall show 등) 파서 작성. 실물 카드 필요.
+    warn "MegaRAID 9600 계열 감지 ($STORCLI2_LINK) — Disk Info 파싱 미지원"
+    echo "       CLI 직접 사용: storcli2 /c0 show"
+    echo "       raid.cfg 는 생성하지 않았습니다."
 
 else
     warn "어느 CLI도 컨트롤러 응답 없음 — raid.cfg 미생성 (RAID 미탑재 또는 CLI 미설치)"
@@ -530,6 +586,13 @@ if [ -L "$STORCLI_LINK" ] && [ -f "$STORCLI_LINK" ]; then
     ok "storcli64 : $STORCLI_LINK → $(readlink "$STORCLI_LINK")"
 else
     warn "storcli64 링크 없음: $STORCLI_LINK"
+fi
+
+# storcli2 (MegaRAID 9600 계열)
+if [ -L "$STORCLI2_LINK" ] && [ -f "$STORCLI2_LINK" ]; then
+    ok "storcli2  : $STORCLI2_LINK → $(readlink "$STORCLI2_LINK")"
+else
+    warn "storcli2 링크 없음: $STORCLI2_LINK (9600 계열 비탑재면 정상)"
 fi
 
 # perccli64

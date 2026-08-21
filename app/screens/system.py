@@ -538,8 +538,15 @@ class SystemScreen(BaseScreen):
         """
         CLI를 실제 실행하여 컨트롤러 응답 여부 확인.
 
-        - megaraid/dell_perc: `/call show` 출력에 "Status = Success" 포함 확인
+        - megaraid/dell_perc: `/call show` 가 실제 컨트롤러를 보고하는지 확인
         - graid           : `version` 명령 정상 종료 확인
+
+        "Status = Success" 만으로 판정하면 오탐한다. 지원 대상이 아닌
+        컨트롤러에 대해서도 CLI 가 성공을 리턴하기 때문이다. 실측:
+            $ storcli2 /call show
+            Status = Success
+            Description = No Controller found
+        따라서 컨트롤러 부재 문구를 함께 배제한다.
         """
         import subprocess
         try:
@@ -553,7 +560,9 @@ class SystemScreen(BaseScreen):
                 ["sudo", cli_path, "/call", "show"],
                 capture_output=True, text=True, timeout=10,
             )
-            return "Status = Success" in r.stdout
+            if "Status = Success" not in r.stdout:
+                return False
+            return "no controller found" not in r.stdout.lower()
         except Exception:
             return False
 
