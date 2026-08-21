@@ -1,0 +1,22 @@
+# MNXMC — mirror 포트 promiscuous 모드 영속화 (systemd 템플릿 유닛)
+#
+# 사용: systemctl enable --now promisc@ens1f0.service
+#       systemctl disable --now promisc@ens1f0.service
+#
+# 인터페이스명이 %i 로 치환되므로 유닛 파일은 고정 경로 1개면 충분하다.
+# 이전 구현은 인터페이스마다 /etc/systemd/system/promisc-<iface>.service 를
+# `sudo tee` 로 생성했는데, 그러려면 sudoers 에 인자 wildcard 규칙
+# (`tee /etc/systemd/system/promisc-*.service`)이 필요했다. Ubuntu 26.04 의
+# sudo-rs 는 인자 wildcard 를 파싱 에러로 처리하므로 템플릿 유닛으로 대체했다.
+[Unit]
+Description=Set promiscuous mode on %i (MNXMC mirror port)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ip link set %i promisc on
+ExecStop=/usr/sbin/ip link set %i promisc off
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

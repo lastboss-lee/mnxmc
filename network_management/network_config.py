@@ -22,6 +22,14 @@ import syslog
 import glob
 from typing import Optional, List, Dict
 
+# PyYAML 은 requirements.txt / packages/pip 에 없고, 시스템 python3-yaml 이
+# /usr/lib/python3/dist-packages 에 깔린 것을 python3.12 가 우연히 집어 온다
+# (netplan.io 가 python3-yaml 을 의존하므로 22.04/26.04 양쪽에서 존재하고,
+#  C 확장은 다른 ABI 라 못 읽지만 순수 파이썬 fallback 으로 동작한다).
+# 없으면 _write_iface_config_legacy 의 `netplan set` 경로로 떨어진다.
+# ponytail: 남의 인터프리터용 패키지에 편승 — 천장은 netplan.io 의존성 변화.
+#   upgrade: PyYAML 을 requirements.txt 에 핀 + packages/pip 에 whl 추가
+#            (requirements.txt 변경은 Tier B → 사용자 검토 필요)
 try:
     import yaml
     _YAML_AVAILABLE = True
@@ -43,7 +51,7 @@ class NetworkConfig:
         set_static_ip()        — Static IP 설정
         set_dhcp()             — DHCP 설정
         remove_ip_config()     — IP 완전 제거 (Mirror port용)
-        set_promisc_persistent() — promisc 영속성 (systemd service)
+        set_promisc_persistent() — promisc 영속성 (systemd promisc@ 템플릿 유닛)
         get_interface_config() — 현재 설정 조회
     """
 
@@ -168,55 +176,37 @@ class NetworkConfig:
 
     def set_promisc_persistent(self, interface: str, enable: bool) -> None:
         """
-        Promisc 모드를 systemd oneshot 서비스로 영구 설정/해제.
+        Promisc 모드를 systemd 템플릿 유닛으로 영구 설정/해제.
 
         재부팅 후에도 mirror 포트 유지됨.
-        서비스 파일: /etc/systemd/system/promisc-{interface}.service
-        """
-        svc_name = f"promisc-{interface}.service"
-        svc_file = f"/etc/systemd/system/{svc_name}"
+        유닛: promisc@<interface>.service
+              (유닛 파일 /etc/systemd/system/promisc@.service 는
+               install_packages.sh 가 root 로 1회 설치)
 
-        if enable:
-            content = (
-                f"[Unit]\n"
-                f"Description=Set promiscuous mode on {interface} (mirror port)\n"
-                f"After=network.target\n\n"
-                f"[Service]\n"
-                f"Type=oneshot\n"
-                f"ExecStart=/usr/sbin/ip link set {interface} promisc on\n"
-                f"RemainAfterExit=yes\n\n"
-                f"[Install]\n"
-                f"WantedBy=multi-user.target\n"
+        인터페이스별 유닛 파일을 sudo tee 로 생성하던 이전 방식은 sudoers 에
+        인자 wildcard 규칙을 요구했고, Ubuntu 26.04 의 sudo-rs 가 이를 파싱
+        에러로 처리해 sudoers 전체가 거부된다. 템플릿 유닛은 systemctl 규칙만
+        쓰므로 두 sudo 구현 모두에서 동작한다.
+        """
+        unit = f"promisc@{interface}.service"
+        action = ['enable', '--now'] if enable else ['disable', '--now']
+
+        try:
+            r = subprocess.run(
+                ['sudo', '-n', '/usr/bin/systemctl', *action, unit],
+                capture_output=True, timeout=10,
             )
-            try:
-                # /etc/systemd/system/ 은 root 권한 필요 → sudo -n tee 로 파일 쓰기
-                subprocess.run(
-                    ['sudo', '-n', '/usr/bin/tee', svc_file],
-                    input=content.encode('utf-8'), capture_output=True, timeout=10
-                )
-                subprocess.run(
-                    ['sudo', '-n', '/usr/bin/systemctl', 'enable', '--now', svc_name],
-                    capture_output=True, timeout=10
-                )
-                syslog.syslog(syslog.LOG_INFO,
-                    f"NetworkConfig: promisc service enabled: {svc_name}")
-            except Exception as e:
+            if r.returncode != 0:
+                stderr = r.stderr.decode('utf-8', errors='replace').strip()
                 syslog.syslog(syslog.LOG_WARNING,
-                    f"NetworkConfig: promisc persist failed: {e}")
-        else:
-            try:
-                subprocess.run(
-                    ['sudo', '-n', '/usr/bin/systemctl', 'disable', '--now', svc_name],
-                    capture_output=True, timeout=10
-                )
-                subprocess.run(
-                    ['sudo', '-n', '/usr/bin/rm', '-f', svc_file],
-                    capture_output=True, timeout=10
-                )
-                syslog.syslog(syslog.LOG_INFO,
-                    f"NetworkConfig: promisc service removed: {svc_name}")
-            except Exception:
-                pass
+                    f"NetworkConfig: promisc {action[0]} failed ({unit}): "
+                    f"{stderr or 'rc=' + str(r.returncode)}")
+                return
+            syslog.syslog(syslog.LOG_INFO,
+                f"NetworkConfig: promisc service {action[0]}d: {unit}")
+        except Exception as e:
+            syslog.syslog(syslog.LOG_WARNING,
+                f"NetworkConfig: promisc persist failed ({unit}): {e}")
 
     def get_interface_config(self, interface: str) -> dict:
         """현재 인터페이스 netplan 설정 조회."""
@@ -271,6 +261,12 @@ class NetworkConfig:
                 "NetworkConfig: PyYAML not available, falling back to netplan set")
             return self._write_iface_config_legacy(interface, iface_cfg)
 
+        # ponytail: sudoers 는 tee/chmod 대상을 70-netplan-set.yaml 과
+        #   50-cloud-init.yaml 두 개로만 허용한다. 인터페이스가 제3의
+        #   /etc/netplan/*.yaml 에 정의돼 있으면 아래 tee 가 거부되고
+        #   PermissionError 로 False 를 반환한다(조용히 실패하지는 않음).
+        #   천장은 "netplan 파일 2개 배치" 가정. upgrade: 파일이 늘어나면
+        #   sudoers 규칙 추가 또는 고정 경로 헬퍼로 전환.
         target = self._find_interface_file(interface) or _NETPLAN_SET_FILE
 
         try:

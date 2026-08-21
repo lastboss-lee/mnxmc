@@ -12,29 +12,19 @@
 # 목적: sands 유저가 MNXMC TUI에서 하드웨어 정보 조회, 설정 파일 쓰기,
 #       네트워크 설정, 서비스 제어, 전원 제어를 패스워드 없이 수행할 수 있도록
 #       특정 명령어에 한해 NOPASSWD sudo 허용
-
-# ── requiretty 예외 (TUI/SSH 환경에서 TTY 없이 sudo 허용) ──────────────────────
-Defaults!/usr/sbin/dmidecode             !requiretty
-Defaults!/usr/local/bin/storcli64        !requiretty
-Defaults!/usr/local/bin/perccli64        !requiretty
-Defaults!/opt/MegaRAID/perccli/perccli64 !requiretty
-Defaults!/usr/bin/graidctl               !requiretty
-Defaults!/usr/sbin/smartctl              !requiretty
-Defaults!/usr/sbin/ip                    !requiretty
-Defaults!/usr/sbin/netplan               !requiretty
-Defaults!/usr/bin/systemctl              !requiretty
-Defaults!/usr/sbin/ethtool               !requiretty
-Defaults!/usr/bin/tee                    !requiretty
-Defaults!/usr/bin/cat                    !requiretty
-Defaults!/usr/bin/rm                     !requiretty
-Defaults!/usr/sbin/ufw                   !requiretty
-Defaults!/usr/bin/fio                    !requiretty
-Defaults!/usr/bin/install                !requiretty
-# Power Control — /sbin 은 Ubuntu 20.04+ 에서 /usr/sbin 심볼릭 링크
-Defaults!/usr/sbin/reboot                !requiretty
-Defaults!/usr/sbin/shutdown              !requiretty
-Defaults!/sbin/reboot                    !requiretty
-Defaults!/sbin/shutdown                  !requiretty
+#
+# ⚠ 이 파일은 sudo(1.9) 와 sudo-rs 양쪽에서 파싱되어야 한다.
+#   Ubuntu 26.04(resolute) 는 /usr/bin/sudo 를 sudo-rs 로 제공한다
+#   (sudo-rs 가 update-alternatives 우선순위 50, 기존 sudo 가 40).
+#   sudo-rs 제약 두 가지를 반드시 지킬 것:
+#     1) 인자 위치의 wildcard 금지. `tee /etc/x/foo-*.conf` 는 파싱 에러가 되어
+#        이 파일 전체가 거부되고 sands 는 모든 NOPASSWD 권한을 잃는다.
+#        (예외: 맨 끝 인자의 `*` = "이후 인자 0개 이상" — 너무 광범위해서 미사용)
+#     2) Defaults 파라미터는 지원 목록만 사용 가능(noexec/rootpw/targetpw/
+#        use_pty/secure_path/env_keep/env_check/umask/passwd_tries/editor 등).
+#        `requiretty` 는 미지원이라 사용하지 않는다. sudo 1.9 에서도 Ubuntu 기본값이
+#        off 이므로 `Defaults!<cmd> !requiretty` 예외 선언 자체가 불필요하다.
+#   변경 후 반드시 두 파서로 검증:  visudo -c -f packages/sudoers_mnxmc
 
 # ── 하드웨어 정보 조회 ──────────────────────────────────────────────────────────
 sands ALL=(root) NOPASSWD: /usr/sbin/dmidecode
@@ -70,12 +60,14 @@ sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/suricata/suricata.yaml
 # ── SSH 세션 정책 파일 쓰기 ───────────────────────────────────────────────────
 sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/ssh/sshd_config.d/mnxmc.conf
 
-# ── 네트워크 설정 파일 쓰기 (netplan YAML, promisc service) ───────────────────
+# ── 네트워크 설정 파일 쓰기 (netplan YAML) ────────────────────────────────────
+# promisc 영속화는 systemd 템플릿 유닛 promisc@.service 로 처리한다.
+# 유닛 파일은 install_packages.sh 가 root 로 1회 설치하므로 tee/rm 규칙이 필요 없고,
+# 인터페이스별 on/off 는 위의 systemctl 규칙(enable/disable promisc@<iface>)으로 커버된다.
 sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/netplan/70-netplan-set.yaml
 sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/netplan/50-cloud-init.yaml
-sands ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/promisc-*.service
-sands ALL=(root) NOPASSWD: /usr/bin/rm -f /etc/systemd/system/promisc-*.service
-sands ALL=(root) NOPASSWD: /usr/bin/chmod 600 /etc/netplan/*
+sands ALL=(root) NOPASSWD: /usr/bin/chmod 600 /etc/netplan/70-netplan-set.yaml
+sands ALL=(root) NOPASSWD: /usr/bin/chmod 600 /etc/netplan/50-cloud-init.yaml
 
 # ── Disk Perf Test: fio 실행, 테스트 디렉토리 생성 및 정리 ──────────────────────
 # 코드: sudo -n /usr/bin/install -d -m 755 <path>/.fio_perf_tmp
