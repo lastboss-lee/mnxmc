@@ -215,12 +215,24 @@ EOF
     fi
 
     echo "  → 의존성 트리 수집 중 (${#resolved[@]}개 요청)..."
+    # apt-cache depends --recurse 는 대체 의존(`a | b | c`)의 모든 분기를 끌어온다.
+    # 그래서 같은 가상 패키지를 provide 하면서 서로 conflict 하는 패키지가 함께
+    # 담기고, 그건 dpkg 로 설치가 불가능하다(설치 시도 → 매번 실패 → apt -f 경고).
+    # 실측: resolute 에서 opensysusers 와 systemd-standalone-sysusers 가 둘 다
+    # systemd-sysusers 를 provide+conflict 하며 포함되어 매 설치마다 실패했다.
+    # ponytail: 알려진 상호배타 대체만 이름으로 제외 — 천장은 새 대체 등장 시 재발.
+    #   upgrade: `apt-cache depends --recurse` 를 빈 dpkg status 기준
+    #            `apt-get install --print-uris` 로 교체하면 apt 솔버가 대체를
+    #            하나만 고르므로 이 부류가 원천 차단된다 (양쪽 세트 재생성 필요).
+    local exclude_re='^(opensysusers|systemd-standalone-sysusers)$'
+
     local all
     all=$(apt-cache "${aptopt[@]}" depends --recurse \
             --no-recommends --no-suggests \
             --no-conflicts --no-breaks --no-replaces --no-enhances \
             "${resolved[@]}" 2>/dev/null \
-          | grep '^\w' | sed 's/:amd64$//' | sort -u)
+          | grep '^\w' | sed 's/:amd64$//' | sort -u \
+          | grep -vE "$exclude_re")
 
     if [ -z "$all" ]; then
         fail "$suite: 의존성 트리 수집 실패"

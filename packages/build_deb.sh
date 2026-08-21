@@ -1,14 +1,41 @@
 #!/bin/bash
 # =============================================================================
-# build_deb.sh  v2.4
+# build_deb.sh  v2.5
 # 역할: /mnxmc 에 소스 + packages/ 를 그대로 풀어주는 아카이브 deb
 # 설치 후: sudo bash /mnxmc/packages/install_packages.sh
+#
+# [사용법]
+#   bash build_deb.sh                          # 두 OS 세트 모두 (mnxmc-VER.deb)
+#   bash build_deb.sh 2.4.0 --suite jammy      # 22.04 전용 (mnxmc-VER-jammy.deb)
+#   bash build_deb.sh 2.4.0 --suite resolute   # 26.04 전용 (mnxmc-VER-resolute.deb)
+#
+# 앱 소스는 두 OS 에서 완전히 동일하다 (python3.12 런타임 통일).
+# suite 를 지정하면 apt/<suite>/ 만 담아 deb 크기가 절반이 된다.
+# install_packages.sh 는 어느 산출물이든 OS 를 자체 판별하므로, 잘못된 deb 를
+# 넣어도 설치가 진행되지 않고 즉시 중단된다.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$(dirname "$SCRIPT_DIR")"
-VERSION="${1:-2.2.0}"
-PKG_NAME="mnxmc-${VERSION}"
+
+VERSION=""
+SUITE="all"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --suite) SUITE="$2"; shift 2 ;;
+        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+        *) VERSION="$1"; shift ;;
+    esac
+done
+VERSION="${VERSION:-2.4.0}"
+
+case "$SUITE" in
+    all)            SUITES=(jammy resolute); PKG_SUFFIX="" ;;
+    jammy|resolute) SUITES=("$SUITE");       PKG_SUFFIX="-$SUITE" ;;
+    *) echo "지원하지 않는 suite: $SUITE (jammy | resolute | all)"; exit 1 ;;
+esac
+
+PKG_NAME="mnxmc-${VERSION}${PKG_SUFFIX}"
 BUILD_DIR="/tmp/mnxmc_build_$$"
 # 출력 위치는 /data (대용량 디렉토리)에 저장. 필요 시 OUT_DIR 환경변수로 override.
 OUT_DIR="${OUT_DIR:-/data}"
@@ -23,6 +50,7 @@ fail() { echo -e "  ${RED}[FAIL]${NC}  $*"; exit 1; }
 echo ""
 echo "============================================================"
 echo "  MNXMC 아카이브 deb 빌더  v${VERSION}"
+echo "  apt  : ${SUITES[*]}"
 echo "  출력 : $OUT_DEB"
 echo "============================================================"
 echo ""
@@ -69,14 +97,32 @@ rsync -a \
     --exclude='partial' \
     --exclude='*.swp' \
     --exclude='*.log' \
+    --exclude='apt/' \
     "$SCRIPT_DIR/" "$MNXMC/packages/"
 
+# apt 세트는 선택된 suite 만 복사한다.
+# rsync 는 최종 디렉토리만 만들고 중간 부모는 만들지 않으므로 mkdir -p 가 필요하다
+# (이게 빠져서 apt 세트가 빠진 28MB deb 가 조용히 만들어진 적이 있다).
+for suite in "${SUITES[@]}"; do
+    if [ ! -d "$SCRIPT_DIR/apt/$suite" ]; then
+        fail "apt/$suite 없음 — bash download_pkg.sh --suite $suite 로 준비하세요"
+    fi
+    mkdir -p "$MNXMC/packages/apt/$suite"
+    rsync -a "$SCRIPT_DIR/apt/$suite/" "$MNXMC/packages/apt/$suite/" \
+        || fail "apt/$suite 복사 실패"
+done
+
 ok "packages/ 복사 완료"
-# apt 세트는 OS 별로 분리되어 있다 (install_packages.sh 가 VERSION_CODENAME 으로 선택).
-# deb 하나에 두 세트를 모두 담아 22.04/26.04 어느 쪽에서도 같은 산출물로 설치한다.
-for suite_dir in "$MNXMC/packages/apt"/*/; do
-    [ -d "$suite_dir" ] || continue
-    ok "  apt/$(basename "$suite_dir") : $(ls "$suite_dir"*.deb 2>/dev/null | wc -l)개"
+
+# 복사 결과를 원본과 대조한다. apt 세트가 빠진 deb 는 설치 시점에야 드러나므로
+# (오프라인 장비에서는 복구 수단이 없다) 여기서 빌드를 실패시킨다.
+for suite in "${SUITES[@]}"; do
+    src_n=$(ls "$SCRIPT_DIR/apt/$suite"/*.deb 2>/dev/null | wc -l)
+    dst_n=$(ls "$MNXMC/packages/apt/$suite"/*.deb 2>/dev/null | wc -l)
+    if [ "$dst_n" -eq 0 ] || [ "$dst_n" -ne "$src_n" ]; then
+        fail "apt/$suite 개수 불일치: 원본 ${src_n}개 → deb ${dst_n}개"
+    fi
+    ok "  apt/$suite : ${dst_n}개 (원본과 일치)"
 done
 ok "  pip  : $(ls "$MNXMC/packages/pip/"*.whl 2>/dev/null | wc -l)개"
 ok "  perccli: $(ls "$MNXMC/packages/perccli/"perccli* 2>/dev/null | wc -l)개 바이너리"
@@ -110,8 +156,10 @@ Version: $VERSION
 Architecture: amd64
 Maintainer: SANDS LAB Inc. <admin@sandslab.kr>
 Depends: bash
-Description: MNX Management Console Archive
+Description: MNX Management Console Archive (apt set: ${SUITES[*]})
  Extracts MNXMC source and offline packages to /mnxmc.
+ Bundled apt sets: ${SUITES[*]} (jammy=22.04, resolute=26.04).
+ The installer detects the running OS and refuses a mismatched set.
  After install, run: sudo bash /mnxmc/packages/install_packages.sh
 Homepage: https://sandslab.kr
 Installed-Size: $SIZE_KB

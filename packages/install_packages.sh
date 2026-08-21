@@ -176,11 +176,31 @@ else
     if [ "$INSTALL_COUNT" -eq 0 ]; then
         ok "모든 패키지 이미 설치됨 — 건너뜀"
     else
-        # dpkg는 의존성 순서를 맞추지 않으므로 최대 3회 반복
+        # dpkg 는 의존성 순서를 맞추지 않으므로 최대 3회 반복.
+        #
+        # --auto-deconfigure : Breaks 기반 전환(t64 전환 등)을 통과시킨다.
+        #   예) libsnmp40t64 는 libsnmp40 (<< 5.9.4) 를 Breaks 한다. 구 패키지가
+        #   깔려 있으면 dpkg 가 "deconfiguration is not permitted
+        #   (--auto-deconfigure might help)" 로 거부한다. 이 플래그는 해당
+        #   패키지를 "제거"하지 않고 일시 deconfigure 만 하며, 뒤따르는
+        #   `dpkg --configure -a` 가 마무리한다. 제거보다 훨씬 좁은 조치다.
+        #
+        # dpkg stderr 를 버리지 않는다. 기존에는 2>/dev/null 로 삼켜서
+        # 어떤 패키지가 왜 실패했는지 알 수 없었고, 실패해도 성공처럼 보였다.
+        DPKG_LOG=$(mktemp)
         for attempt in 1 2 3; do
-            dpkg -i "${INSTALL_LIST[@]}" 2>/dev/null && break
+            if dpkg -i --auto-deconfigure "${INSTALL_LIST[@]}" >"$DPKG_LOG" 2>&1; then
+                rm -f "$DPKG_LOG"; DPKG_LOG=""
+                break
+            fi
             echo "  → [${attempt}/3] 재시도 중 (의존성 순서 해결)..."
         done
+        if [ -n "$DPKG_LOG" ]; then
+            warn "dpkg -i 가 3회 시도 후에도 오류를 보고했습니다:"
+            grep -E "^dpkg: (error|warning)|would break|not permitted" "$DPKG_LOG" \
+                | sort -u | head -10 | sed 's/^/       /'
+            echo "       전체 로그: $DPKG_LOG"
+        fi
 
         # dpkg 상태 정리 (언팩 상태인 패키지 설정 완료)
         dpkg --configure -a 2>/dev/null || true
@@ -202,7 +222,22 @@ else
             warn "apt/$OS_CODENAME 세트가 이 OS와 맞는지 확인하세요 (제거 방지 가드 동작)"
         fi
 
-        ok "${INSTALL_COUNT}개 설치 완료 (${SKIP_COUNT}개 skip)"
+        # dpkg 상태를 반드시 확인한다.
+        # --no-remove 가드가 apt 의 "제거로 해결" 을 막으면 일부 패키지가
+        # iU(unpacked, 미설정) 로 남는다. 그 패키지는 파일만 풀린 상태라
+        # 실제로 동작하지 않으므로 성공으로 보고하면 안 된다.
+        # 대표 원인: 세트에 없는 기존 설치 패키지가 공유 라이브러리 업그레이드로
+        # 깨지는 경우(예: 구 libpmemblk1 vs 새 libpmem1).
+        BROKEN=$(dpkg -l 2>/dev/null | awk 'NR>5 && $1 !~ /^(ii|rc|un)$/ {print $2}')
+        if [ -n "$BROKEN" ]; then
+            fail "설정되지 않은(iU) 패키지가 남았습니다 — 해당 기능은 동작하지 않습니다:"
+            echo "$BROKEN" | sed 's/^/       /'
+            apt-get check 2>&1 | grep -E "^ [a-z0-9]" | sed 's/^/       /' | head -10
+            echo "       온라인 장비 복구 : sudo apt-get install -f"
+            echo "       오프라인 장비    : 위 미충족 의존 .deb 를 apt/$OS_CODENAME 에 추가 후 재실행"
+        else
+            ok "${INSTALL_COUNT}개 설치 완료 (${SKIP_COUNT}개 skip, dpkg 상태 정상)"
+        fi
     fi
 fi
 
@@ -229,21 +264,30 @@ else
 
     echo "  → ${WHL_COUNT}개 .whl 설치 중 ($PYTHON)..."
 
-    # --break-system-packages: Ubuntu 23.04+ PEP 668 환경 대응
-    # 실패 시 옵션 없이 재시도 (Ubuntu 22.04 이하)
-    "$PYTHON" -m pip install \
-        --no-index \
-        --find-links="$PIP_DIR" \
-        --quiet \
-        textual rich requests \
-        --break-system-packages 2>/dev/null \
-    || "$PYTHON" -m pip install \
-        --no-index \
-        --find-links="$PIP_DIR" \
-        --quiet \
-        textual rich requests
+    # --break-system-packages : PEP 668 대응 (Ubuntu 23.04+)
+    # --ignore-installed      : 26.04 에서 필수다.
+    #   netplan.io 가 python3-rich 를 의존으로 끌고 오고, 그게
+    #   /usr/lib/python3/dist-packages 에 있어 python3.12 에서도 보인다.
+    #   pip 은 dpkg 가 관리하는 패키지를 제거할 수 없어(RECORD 파일 없음)
+    #   "Cannot uninstall rich" 로 설치 전체가 중단되고 textual 까지 안 깔린다.
+    #   --ignore-installed 로 우리 핀을 /usr/local/lib/python3.12/dist-packages
+    #   에 설치한다. sys.path 에서 /usr/local 이 앞이라 우리 버전이 이긴다.
+    #   (22.04 의 netplan 0.104 는 python3-rich 의존이 없어 발생하지 않았다)
+    PIP_ARGS=( --no-index --find-links="$PIP_DIR" --quiet --ignore-installed )
+    "$PYTHON" -m pip install "${PIP_ARGS[@]}" --break-system-packages \
+        textual rich requests 2>/dev/null \
+    || "$PYTHON" -m pip install "${PIP_ARGS[@]}" textual rich requests
 
-    ok "${WHL_COUNT}개 .whl 설치 완료"
+    # 설치 결과를 import 로 확인한다.
+    # 기존 코드는 pip 종료코드를 무시하고 무조건 성공을 출력했고, 그래서
+    # 26.04 에서 textual 이 없어 TUI 가 기동 불가한 상태가 조용히 지나갔다.
+    if "$PYTHON" -c "import textual, rich, requests" 2>/dev/null; then
+        ok "${WHL_COUNT}개 .whl 설치 완료 (textual/rich/requests import 확인)"
+    else
+        fail "pip 설치 실패 — TUI 가 기동하지 않습니다"
+        "$PYTHON" -c "import textual, rich, requests" 2>&1 | tail -3 | sed 's/^/       /'
+        echo "       확인: $PYTHON -m pip install --no-index --find-links=$PIP_DIR --ignore-installed textual"
+    fi
 fi
 
 echo ""
